@@ -6,7 +6,7 @@ import { BrandMark, CloseIcon, KeyboardIcon, MoonIcon, SunIcon } from "./ui/icon
 
 const SHORTCUTS: Array<[string[], string]> = [
   [["Space"], "Play / pause"],
-  [["←", "→"], "Previous / next step"],
+  [["←", "→"], "Back / forward one sentence"],
   [["R"], "Restart lesson"],
   [["Esc"], "Close an open panel"],
 ];

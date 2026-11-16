@@ -19,13 +19,25 @@ export function Button({ variant = "primary", className = "", ...props }: Compon
   );
 }
 
-export function IconButton({ label, className = "", ...props }: ComponentProps<"button"> & { label: string }) {
+const ICON_VARIANTS = {
+  ghost: "text-fg hover:bg-raised disabled:text-[var(--disabled-text)] disabled:hover:bg-transparent",
+  filled: "bg-action text-on-action hover:bg-action-hover disabled:opacity-50",
+  /** Sits on the always-light board, so it uses board ink in both themes. */
+  board: "bg-board/80 text-[var(--board-ink)] hover:bg-board [--focus:var(--board-focus)]",
+};
+
+export function IconButton({
+  label,
+  variant = "ghost",
+  className = "",
+  ...props
+}: ComponentProps<"button"> & { label: string; variant?: keyof typeof ICON_VARIANTS }) {
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
-      className={`inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-fg transition-colors duration-[120ms] ease-ui hover:bg-raised disabled:cursor-not-allowed disabled:text-[var(--disabled-text)] disabled:hover:bg-transparent ${className}`}
+      className={`inline-flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors duration-[120ms] ease-ui disabled:cursor-not-allowed ${ICON_VARIANTS[variant]} ${className}`}
       {...props}
     />
   );

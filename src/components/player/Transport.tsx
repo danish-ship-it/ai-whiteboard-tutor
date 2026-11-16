@@ -33,7 +33,7 @@ export function Transport({ playback, scenes, currentScene, canStepBack, canStep
           label={ended ? "Replay lesson" : playing ? "Pause lesson" : "Play lesson"}
           onClick={playback.toggle}
           disabled={disabled}
-          className="bg-action text-on-action hover:bg-action-hover"
+          variant="filled"
         >
           {ended ? <ReplayIcon /> : playing ? <PauseIcon /> : <PlayIcon />}
         </IconButton>
@@ -77,7 +77,7 @@ function Timeline({ playback, scenes }: { playback: Playback; scenes: TimedScene
 
   return (
     <div
-      className="relative h-11"
+      className="relative h-11 rounded-md has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-[var(--focus)]"
       onPointerMove={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));

@@ -32,6 +32,9 @@ export interface ShapeGeometry extends Box {
 
 export interface ConnectorGeometry {
   id: string;
+  /** Ids of the shapes this connector joins. */
+  fromId: string;
+  toId: string;
   from: Point;
   to: Point;
   label: string;
@@ -86,6 +89,8 @@ export function layoutLesson(lesson: Lesson): SceneLayout[] {
         const to = edgePoint(b, center(a));
         connectors[action.id] = {
           id: action.id,
+          fromId: action.from,
+          toId: action.to,
           from,
           to,
           label: action.label,

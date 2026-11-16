@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import type { RecallQuestion } from "@/lib/lesson/schema";
 import { Button } from "../ui/Button";
 import { CheckIcon, CloseIcon } from "../ui/icons";
@@ -21,17 +20,14 @@ interface Props {
  * lesson is what makes it stick (research/learning-ux-report.md §2).
  */
 export function Recall({ questions, picked, onPick, onReplay, onAsk, onShowScene }: Props) {
-  const heading = useRef<HTMLHeadingElement>(null);
   const answered = Object.keys(picked).length;
   const correct = questions.filter((q, i) => picked[i] === q.answer).length;
   const done = answered === questions.length;
 
-  useEffect(() => heading.current?.focus(), []);
-
   return (
     <section aria-labelledby="recall-heading" className="mt-5 rounded-lg border border-divider bg-surface p-4 md:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="recall-heading" ref={heading} tabIndex={-1} className="text-xl leading-7 font-semibold focus:outline-none">
+        <h2 id="recall-heading" className="text-xl leading-7 font-semibold">
           {questions.length ? "Lesson complete. Quick check" : "Lesson complete."}
         </h2>
         {questions.length > 0 && (

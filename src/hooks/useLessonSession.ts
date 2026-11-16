@@ -160,9 +160,10 @@ export function useLessonSession() {
     setState({ phase: "home", topic });
   }, []);
 
-  /** Switches a lesson whose voice failed into captions-only playback. */
+  /** Switches a lesson whose voice failed (to load or to play) into captions-only playback. */
   const continueWithCaptions = useCallback(() => {
-    setState((s) => (s.phase === "lesson" ? { ...s, data: { ...s.data, voiceError: null } } : s));
+    releaseAudio();
+    setState((s) => (s.phase === "lesson" ? { ...s, data: { ...s.data, voiceError: null, audioUrl: null } } : s));
   }, []);
 
   return { state, generate, cancel, goHome, continueWithCaptions };

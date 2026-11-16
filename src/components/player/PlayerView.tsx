@@ -31,6 +31,22 @@ function subscribeReducedMotion(callback: () => void) {
 export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }: Props) {
   const { lesson, timeline, scenes, token, voiceError } = data;
   const playback = usePlayback(voiceError ? null : data.audioUrl, timeline.duration);
+  // A voice that loaded on the server can still fail in the browser (decode or playback errors).
+  const voiceProblem = voiceError ?? (playback.status === "error" && data.audioUrl ? "The audio couldn't play in this browser." : null);
+
+  // "Continue with captions" switches the source, then starts the virtual clock once the switch lands.
+  const startAfterSwitch = useRef(false);
+  const continueWithCaptions = () => {
+    startAfterSwitch.current = true;
+    onContinueWithCaptions();
+  };
+  const { play } = playback;
+  useEffect(() => {
+    if (startAfterSwitch.current && !data.audioUrl && !voiceError) {
+      startAfterSwitch.current = false;
+      play();
+    }
+  }, [data.audioUrl, voiceError, play]);
   const { time, status } = playback;
   const state = useMemo(() => boardStateAt(timeline, time), [timeline, time]);
   // Answer emphasis is shown only while the board stays paused where the answer put it.
@@ -47,6 +63,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
   const desktopComposer = useRef<HTMLTextAreaElement>(null);
   const sheetHeading = useRef<HTMLHeadingElement>(null);
   const dockButton = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLDialogElement>(null);
 
   const scene = timeline.scenes[state.sceneIndex];
   const titleProgress = state.sceneIndex === 0 ? 1 : Math.min(1, Math.max(0, (time - scene.start) / 0.6));
@@ -127,18 +144,21 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
     setSheetOpen(true);
   };
   const closeSheet = useCallback(() => {
+    sheet.current?.close();
     setSheetOpen(false);
     dockButton.current?.focus();
   }, []);
 
-  // Mobile question sheet: focus management and Escape.
   useEffect(() => {
-    if (!sheetOpen) return;
-    sheetHeading.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeSheet();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [sheetOpen, closeSheet]);
+    const dialog = sheet.current;
+    if (!dialog) return;
+    if (sheetOpen && !dialog.open) {
+      dialog.showModal();
+      sheetHeading.current?.focus();
+    } else if (!sheetOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [sheetOpen]);
 
   const expandBoard = async () => {
     const el = boardRef.current;
@@ -175,14 +195,14 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
           </Button>
         </div>
 
-        {voiceError && (
+        {voiceProblem && (
           <div role="alert" className="mt-4 flex flex-col gap-3 rounded-lg border border-warning bg-warning-bg p-4 md:flex-row md:items-center">
             <WarningIcon className="hidden shrink-0 text-warning md:block" />
             <div className="flex-1">
               <p className="text-base font-semibold text-warning">The voice couldn&rsquo;t load.</p>
-              <p className="text-sm text-fg">The board and captions are ready. ({voiceError})</p>
+              <p className="text-sm text-fg">The board and captions are ready. ({voiceProblem})</p>
             </div>
-            <Button onClick={onContinueWithCaptions} className="self-start md:self-auto">
+            <Button onClick={continueWithCaptions} className="self-start md:self-auto">
               Continue with captions
             </Button>
           </div>
@@ -191,15 +211,15 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
         <section className="mt-4 overflow-hidden rounded-xl border border-divider shadow-panel" aria-label="Lesson player">
           <div ref={boardRef} className="relative aspect-video w-full bg-board">
             <Whiteboard scenes={scenes} state={state} titleProgress={titleProgress} emphasis={emphasis} reducedMotion={reducedMotion} description={`${lesson.title}. ${lesson.objective}`} />
-            {(ready || status === "blocked") && !voiceError && (
+            {(ready || status === "blocked") && !voiceProblem && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <Button onClick={playback.play} className="w-40 shadow-popover">
                   <PlayIcon size={16} /> {status === "blocked" ? "Tap to play" : "Start lesson"}
                 </Button>
               </div>
             )}
-            {status === "loading" && <p className="absolute inset-x-0 bottom-3 text-center text-sm text-muted">Loading the voice…</p>}
-            <IconButton label="Expand board" onClick={expandBoard} className="absolute top-2 right-2 bg-board/80 md:hidden">
+            {status === "loading" && <p className="absolute inset-x-0 bottom-3 text-center text-sm text-[var(--board-ink)]">Loading the voice…</p>}
+            <IconButton label="Expand board" variant="board" onClick={expandBoard} className="absolute top-2 right-2 md:hidden">
               <ExpandIcon />
             </IconButton>
           </div>
@@ -296,23 +316,26 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
           Ask a question <ChevronUp size={16} />
         </button>
       </div>
-      {sheetOpen && (
-        <div className="fixed inset-0 z-60 xl:hidden">
-          <div className="absolute inset-0 bg-[rgba(23,28,25,0.48)]" onClick={closeSheet} aria-hidden="true" />
-          <div role="dialog" aria-modal="true" aria-labelledby="sheet-heading" className="absolute inset-x-0 bottom-0 flex h-[min(564px,85dvh)] flex-col rounded-t-2xl bg-surface px-4 pt-2 pb-4 shadow-sheet">
-            <span className="mx-auto h-1 w-10 rounded-full bg-divider" aria-hidden="true" />
-            <div className="mt-2 flex items-center justify-between">
-              <h2 id="sheet-heading" ref={sheetHeading} tabIndex={-1} className="text-xl leading-7 font-semibold focus:outline-none">
-                Questions
-              </h2>
-              <IconButton label="Close questions" onClick={closeSheet}>
-                <CloseIcon />
-              </IconButton>
-            </div>
-            <div className="mt-2 min-h-0 flex-1">{questions()}</div>
-          </div>
+      {/* Native modal: the rest of the page is inert while it is open, and Escape closes it.
+          It stays mounted so the conversation and any draft survive closing it. */}
+      <dialog
+        ref={sheet}
+        aria-labelledby="sheet-heading"
+        onClose={() => setSheetOpen(false)}
+        onClick={(e) => e.target === e.currentTarget && closeSheet()}
+        className="fixed inset-x-0 top-auto bottom-0 m-0 h-[min(564px,85dvh)] max-h-none w-full max-w-none flex-col rounded-t-2xl bg-surface px-4 pt-2 pb-4 text-fg shadow-sheet open:flex backdrop:bg-[rgba(23,28,25,0.48)] xl:hidden"
+      >
+        <span className="mx-auto h-1 w-10 shrink-0 rounded-full bg-divider" aria-hidden="true" />
+        <div className="mt-2 flex items-center justify-between">
+          <h2 id="sheet-heading" ref={sheetHeading} tabIndex={-1} className="text-xl leading-7 font-semibold focus:outline-none">
+            Questions
+          </h2>
+          <IconButton label="Close questions" onClick={closeSheet}>
+            <CloseIcon />
+          </IconButton>
         </div>
-      )}
+        <div className="mt-2 min-h-0 flex-1">{questions()}</div>
+      </dialog>
     </main>
   );
 }
@@ -320,7 +343,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
 function Caption({ ready, text, wordIndex }: { ready: boolean; text: string; wordIndex: number }) {
   const words = text.split(/\s+/).filter(Boolean);
   return (
-    <div className="min-h-20 border-t border-divider bg-surface px-4 py-3 md:px-4">
+    <div className="min-h-[104px] border-t border-divider bg-surface px-4 py-3 md:min-h-[100px]">
       <p className="kicker hidden md:block" aria-hidden="true">
         Tutor
       </p>

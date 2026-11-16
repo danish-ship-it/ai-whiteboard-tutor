@@ -63,7 +63,8 @@ export function HomeView({ initialTopic, offline, onSubmit }: { initialTopic: st
               if (error) setError("");
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              // Enter also confirms Korean/Japanese/Chinese composition; never submit mid-composition.
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                 e.preventDefault();
                 submit();
               }

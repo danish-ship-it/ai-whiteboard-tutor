@@ -40,7 +40,7 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
   return (
     <svg viewBox={`0 0 ${BOARD_W} ${BOARD_H}`} className="block h-full w-full select-none" role="img" aria-labelledby="board-title board-desc">
       <title id="board-title">{`Whiteboard: ${scene.title}`}</title>
-      <desc id="board-desc">{description ?? state.caption}</desc>
+      <desc id="board-desc">{describeBoard(scene, state, description)}</desc>
 
       <g aria-hidden="true" fontFamily="var(--font-instrument), Arial, sans-serif">
         <SceneTitle text={scene.title} progress={reveal(titleProgress)} />
@@ -72,6 +72,20 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
     </svg>
   );
 });
+
+/** Plain-language summary of what is drawn so far, for screen readers (the drawing itself is aria-hidden). */
+function describeBoard(scene: SceneLayout, state: BoardState, prefix?: string): string {
+  const drawn = state.elements.filter((el) => el.progress > 0);
+  const text = (id: string) => scene.shapes[id]?.lines.join(" ") ?? id;
+  const parts = drawn.flatMap((el) => {
+    const shape = scene.shapes[el.id];
+    if (shape) return [shape.kind === "write" ? `the equation ${text(el.id)}` : text(el.id)];
+    const c = scene.connectors[el.id];
+    return c ? [`an arrow from ${text(c.fromId)} to ${text(c.toId)}${c.label ? ` labelled ${c.label}` : ""}`] : [];
+  });
+  const board = parts.length ? `On the board: ${parts.join("; ")}.` : "The board is empty.";
+  return [prefix, scene.title, board].filter(Boolean).join(" ");
+}
 
 interface NibAt {
   x: number;
@@ -252,7 +266,7 @@ function ConnectorView({ c, path, progress, earlier }: { c: ConnectorGeometry; p
         ))}
       </g>
       {c.label && head > 0 && (
-        <text x={c.labelAt.x} y={c.labelAt.y + 12} fill={color} stroke="var(--board)" strokeWidth={14} paintOrder="stroke" fontSize={40} fontWeight={600} textAnchor="middle">
+        <text x={c.labelAt.x} y={c.labelAt.y + 12} fill={color} stroke="var(--board)" strokeWidth={14} paintOrder="stroke" fontSize={46} fontWeight={600} textAnchor="middle">
           {c.label}
         </text>
       )}

@@ -52,7 +52,7 @@ Write 3 suggested follow-up questions a curious learner would ask next.
 
 Write 2-3 recall questions for the end of the lesson, ideally one per scene, that make the learner retrieve what was taught (not trivia, not wording tricks): each with 2-3 short options, exactly one correct, a one-sentence explanation, and the id of the scene that taught it.`;
 
-const FOLLOWUP_SYSTEM = `You are Chalk, the tutor who just taught the lesson below at a whiteboard. Answer the learner's follow-up question clearly and kindly in 2-6 sentences of plain prose (no markdown, no lists). Ground the answer in the lesson and go one step deeper where useful; if the question is unrelated to the lesson, answer briefly and connect it back if you can. If a board element from the lesson helps, list its id in "highlight" (only ids that appear in the lesson JSON) and give the id of that element's scene as "sceneId".`;
+const FOLLOWUP_SYSTEM = `You are Chalk, the tutor who just taught the lesson below at a whiteboard. Answer the learner's follow-up question clearly and kindly in 2-6 sentences of plain prose (no markdown, no lists). Ground the answer in the lesson and go one step deeper where useful; if the question is unrelated to the lesson, answer briefly and connect it back if you can. If a board element from the lesson helps, list its id in "highlight" (only ids of "add" or "write" actions in the lesson JSON; to point at an arrow, list the elements it connects) and give the id of that element's scene as "sceneId".`;
 
 function assertCompleted(response: { stop_reason: string | null }) {
   if (response.stop_reason === "refusal") throw new TutorError("The tutor can't teach that topic. Try a different one.", 422);
@@ -125,7 +125,8 @@ export async function answerFollowUp(
   );
   if (response.stop_reason === "refusal") throw new TutorError("The tutor can't answer that question.", 422);
   if (!response.parsed_output) throw new TutorError("The tutor couldn't answer that. Please rephrase your question.", 502);
-  const ids = new Set(lesson.scenes.flatMap((s) => s.beats.flatMap((b) => b.actions.flatMap((a) => ("id" in a ? [a.id] : [])))));
+  // Only shapes and equations can be emphasised on the board; arrows are pointed at through their endpoints.
+  const ids = new Set(lesson.scenes.flatMap((s) => s.beats.flatMap((b) => b.actions.flatMap((a) => (a.kind === "add" || a.kind === "write" ? [a.id] : [])))));
   const answer = response.parsed_output;
   return {
     answer: answer.answer.trim(),

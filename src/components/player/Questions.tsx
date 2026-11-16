@@ -40,9 +40,15 @@ export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, c
   const input = composerRef ?? localRef;
   const scroller = useRef<HTMLDivElement>(null);
   const hintId = useId();
+  const inputId = useId();
 
+  // Follow new messages only if the reader was already at the bottom, so rereading isn't interrupted.
+  const pinned = useRef(true);
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
+    const el = scroller.current;
+    if (!el || !pinned.current) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" });
   }, [messages, pending]);
 
   const ask = async (question: string, history: QAMessage[]) => {
@@ -62,7 +68,9 @@ export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, c
       if (!response.ok) throw new Error((data as { error?: string }).error ?? "I couldn't answer that.");
       const answer = data as AnswerResponse;
       setMessages((m) => [...m, { id: nextId++, role: "assistant", content: answer.answer, highlight: answer.highlight, sceneId: answer.sceneId }]);
-      if (answer.highlight.length && answer.sceneId) onShowOnBoard(answer.sceneId, answer.highlight);
+      // Beside the board (desktop) an answer points at it right away; in the mobile sheet the learner
+      // reads first and uses "Show on the board", so the answer isn't dismissed before it is read.
+      if (answer.highlight.length && answer.sceneId && window.matchMedia("(min-width: 1280px)").matches) onShowOnBoard(answer.sceneId, answer.highlight);
     } catch (error) {
       const message = navigator.onLine ? (error as Error).message : "Connection lost.";
       setMessages((m) => [...m, { id: nextId++, role: "assistant", content: message, failed: true }]);
@@ -91,7 +99,16 @@ export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, c
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pr-1" aria-live="polite" aria-relevant="additions">
+      <div
+        ref={scroller}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        }}
+        className="min-h-0 flex-1 overflow-y-auto pr-1"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
         {messages.length === 0 && !pending ? (
           <div className="mt-6 flex gap-3">
             <span className="w-[3px] shrink-0 bg-action" />
@@ -174,11 +191,11 @@ export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, c
           send();
         }}
       >
-        <label htmlFor="question" className="sr-only">
+        <label htmlFor={inputId} className="sr-only">
           Ask about this lesson
         </label>
         <textarea
-          id="question"
+          id={inputId}
           ref={input}
           rows={2}
           value={draft}
@@ -187,7 +204,8 @@ export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, c
           aria-describedby={hintId}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Enter also confirms Korean/Japanese/Chinese composition; never submit mid-composition.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
               e.preventDefault();
               send();
             }
@@ -198,7 +216,7 @@ export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, c
           <p id={hintId} className="text-xs text-muted">
             {offline ? "You're offline. Your draft is kept." : pending ? "Thinking… You can draft your next question." : "Enter to send · Shift+Enter for a new line"}
           </p>
-          <IconButton type="submit" label="Send question" disabled={!draft.trim() || pending || offline} className="bg-action text-on-action hover:bg-action-hover">
+          <IconButton type="submit" label="Send question" variant="filled" disabled={!draft.trim() || pending || offline}>
             <SendIcon />
           </IconButton>
         </div>

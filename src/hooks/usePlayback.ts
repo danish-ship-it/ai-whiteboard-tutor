@@ -44,6 +44,16 @@ export function usePlayback(audioSrc: string | null, timelineDuration: number): 
   const rateRef = useRef(1);
   const statusRef = useRef<PlaybackStatus>(initialStatus);
 
+  // Dropping a failed audio source (captions fallback) continues on the virtual clock, paused.
+  const [source, setSource] = useState(audioSrc);
+  if (source !== audioSrc) {
+    setSource(audioSrc);
+    setStatus(audioSrc ? "loading" : "paused");
+  }
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
   const duration = Math.max(timelineDuration, mediaDuration);
   const durationRef = useRef(duration);
   useEffect(() => {
@@ -113,6 +123,9 @@ export function usePlayback(audioSrc: string | null, timelineDuration: number): 
     audio.addEventListener("error", onError);
     return () => {
       invalidate();
+      // Keep the learner's place if this source is dropped for captions-only playback.
+      virtual.current = { base: Number.isFinite(audio.currentTime) ? audio.currentTime : 0, startedAt: 0, running: false };
+      audioRef.current = null;
       audio.pause();
       audio.removeEventListener("loadedmetadata", onMeta);
       audio.removeEventListener("ended", onEnded);

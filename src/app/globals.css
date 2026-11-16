@@ -29,6 +29,9 @@
 
   /* Whiteboard: identical in both themes. Lesson tones map onto the six inks. */
   --board: #fffcf5;
+  /* The board is paper in both themes, so controls on it use fixed light-theme ink and focus. */
+  --board-ink: #262a28;
+  --board-focus: #255a46;
   --board-border: #a9aea3;
   --ink-ink: #262a28; /* graphite */
   --ink-blue: #2356a8;
