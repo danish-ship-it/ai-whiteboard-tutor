@@ -197,6 +197,8 @@ Ranked by expected learning impact divided by effort. "Where" points to the spec
 | 11 | **Script rules in the prompt:** second person, sentences of 20 words or fewer for adults and 12 or fewer for children, no tangents, name the parts before using them, and finish with a one-line takeaway. | Medium | Low | Generation prompt | Ginns et al. 2013; Rey 2012; Mayer 2021 |
 | 12 | **Follow-up answers:** narrate the annex while it draws, not before or after it, and pause the main lesson (already in the spec). | Low–Medium | Low | Follow-up annex | Ginns 2006 |
 
+**Implementation status (17 Nov 2026):** built: 2 (end-of-lesson recall), 3 (audience selector, three bands: Kids 8–12, Teens, Adults), 4 (marker nib), 5 (ink rule), 7 (0.75×), 9 (captions toggle, remembered), 12 (follow-ups pause the lesson and point at the board), plus dual coding: every scene must draw a picture of the subject. Not yet built: 1 (step-end checks), 6 (pauses at step ends), 8 (pre-question), 10 (voice indicator), 11 (child sentence-length rule beyond the audience note).
+
 **Do not build:** a talking-face avatar; colour themes based on hue-mood claims; badges, streaks or confetti in a 2-minute lesson. Gamification shows benefits mainly in longer courses, and its effects vary widely by design (Sailer & Homner 2020 [doi](https://doi.org/10.1007/s10648-019-09498-w)). Its value at this scale is *weak evidence*.
 
 ---
