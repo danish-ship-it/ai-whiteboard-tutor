@@ -1,7 +1,8 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { FollowUpAnswer, Lesson } from "../lesson/schema";
+import { ICON_NAMES } from "../board/icons";
+import { FollowUpAnswer, isElement, type Lesson, LessonDraft } from "../lesson/schema";
 import { LessonValidationError, validateLesson, type ValidationResult } from "../lesson/validate";
 import { env } from "./env";
 
@@ -39,7 +40,13 @@ The board is a 10-column by 5-row grid (columns 0-9 left to right, rows 0-4 top 
 - add: a shape (box, circle, pill, note) or a free label (shape "none") with a label of at most 3 short words, at col/row, spanning w (1-4) by h (1-2) cells. Labels are large, so a 1-cell-wide shape fits only one short word; use w 2-3 for two or three words. Give it a short descriptive id that is unique across the whole lesson and never reuses a scene or beat id (e.g. "hyp", "eq1").
 - connect: an arrow, line or double arrow between two elements already added in this scene, with an optional 1-3 word label. This is how you show cause, flow, sequence and relationships.
 - write: hand-written notation such as an equation, formula, chemical equation or code fragment (keep it under 22 characters), at col/row with w 3-6 and h 1.
+- picture: a hand-drawn picture with an optional 1-3 word caption, described in "draw". Either name an icon from the icon list below (w 2-3, h 2) for real things such as planets, the sun, cells, leaves, hearts, atoms, money, computers or people; or sketch it as 2-24 "x,y" points separated by spaces, with x and y from 0 to 100 inside its own box (x right, y down), drawn in order (w 2-6, h 2-3). Start the points with "~" to draw a smooth curve and end them with "z" to close the shape. Sketch what no icon has: an orbit ellipse, a triangle with its right angle, a wave, a graph curve, a mountain profile, the path of a ball. Plan the points so the shape is right (a right triangle: "5,95 5,5 95,95 z"; an orbit: "~ 50,10 80,18 96,50 80,82 50,90 20,82 4,50 20,18 z").
 - highlight: circle or underline an element already on the board to point back at it.
+
+Icon list: ${ICON_NAMES.join(", ")}.
+
+## Pictures teach
+The board should look like a teacher's drawing of the subject, not a flowchart of words. Every scene has at least one picture of the actual subject, and the most important idea in each scene is drawn, not only written. Examples: the solar system is a sun icon in the middle, planet icons around it and sketched orbit ellipses, with captions naming them; photosynthesis is a sun, a leaf, droplets and arrows for light, water and carbon dioxide going in and sugar and oxygen coming out; Pythagoras is a sketched right triangle with its sides labelled and squares on each side; supply and demand is two sketched curves crossing on axes. Use boxes and words for what can't be pictured (rules, steps, abstract terms). When the topic has several of a thing (the planets, the organs, the parts of a cell), draw them side by side rather than one picture standing for all. Never use an icon as decoration: each picture must show something the sentence talks about, and its caption or the narration names it.
 Composition rules:
 - Lay out diagrams spatially so their shape teaches: flows left to right, hierarchies top to bottom, before/after side by side, parts around a whole.
 - Never place two elements on the same cells. Leave at least one empty column between elements that are joined by a connector so the arrow and its label have room.
@@ -52,7 +59,7 @@ Write 3 suggested follow-up questions a curious learner would ask next.
 
 Write 2-3 recall questions for the end of the lesson, ideally one per scene, that make the learner retrieve what was taught (not trivia, not wording tricks): each with 2-3 short options, exactly one correct, a one-sentence explanation, and the id of the scene that taught it.`;
 
-const FOLLOWUP_SYSTEM = `You are Chalk, the tutor who just taught the lesson below at a whiteboard. Answer the learner's follow-up question clearly and kindly in 2-6 sentences of plain prose (no markdown, no lists). Ground the answer in the lesson and go one step deeper where useful; if the question is unrelated to the lesson, answer briefly and connect it back if you can. If a board element from the lesson helps, list its id in "highlight" (only ids of "add" or "write" actions in the lesson JSON; to point at an arrow, list the elements it connects) and give the id of that element's scene as "sceneId".`;
+const FOLLOWUP_SYSTEM = `You are Chalk, the tutor who just taught the lesson below at a whiteboard. Answer the learner's follow-up question clearly and kindly in 2-6 sentences of plain prose (no markdown, no lists). Ground the answer in the lesson and go one step deeper where useful; if the question is unrelated to the lesson, answer briefly and connect it back if you can. If a board element from the lesson helps, list its id in "highlight" (only ids of drawn elements, not arrows or highlights, all from the same scene; to point at an arrow, list the elements it connects) and give the id of that scene as "sceneId".`;
 
 function assertCompleted(response: { stop_reason: string | null }) {
   if (response.stop_reason === "refusal") throw new TutorError("The tutor can't teach that topic. Try a different one.", 422);
@@ -82,7 +89,7 @@ export async function generateLesson(topic: string, signal?: AbortSignal): Promi
         max_tokens: 16000,
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
-        output_config: { effort: env.lessonEffort(), format: zodOutputFormat(Lesson) },
+        output_config: { effort: env.lessonEffort(), format: zodOutputFormat(LessonDraft) },
         system: LESSON_SYSTEM,
         messages,
       },
@@ -125,12 +132,14 @@ export async function answerFollowUp(
   );
   if (response.stop_reason === "refusal") throw new TutorError("The tutor can't answer that question.", 422);
   if (!response.parsed_output) throw new TutorError("The tutor couldn't answer that. Please rephrase your question.", 502);
-  // Only shapes and equations can be emphasised on the board; arrows are pointed at through their endpoints.
-  const ids = new Set(lesson.scenes.flatMap((s) => s.beats.flatMap((b) => b.actions.flatMap((a) => (a.kind === "add" || a.kind === "write" ? [a.id] : [])))));
+  // Only drawn elements can be emphasised (arrows are pointed at through their endpoints), all in one scene.
+  const sceneOf = new Map(lesson.scenes.flatMap((s) => s.beats.flatMap((b) => b.actions.flatMap((a) => (isElement(a) ? [[a.id, s.id] as const] : [])))));
   const answer = response.parsed_output;
+  const known = answer.highlight.filter((id) => sceneOf.has(id));
+  const sceneId = lesson.scenes.some((s) => s.id === answer.sceneId) ? answer.sceneId : (sceneOf.get(known[0]) ?? "");
   return {
     answer: answer.answer.trim(),
-    highlight: answer.highlight.filter((id) => ids.has(id)),
-    sceneId: lesson.scenes.some((s) => s.id === answer.sceneId) ? answer.sceneId : "",
+    highlight: known.filter((id) => sceneOf.get(id) === sceneId),
+    sceneId,
   };
 }

@@ -42,8 +42,11 @@ export interface Timeline {
   events: TimelineEvent[];
 }
 
-const DRAW_SECONDS: Record<Action["kind"], number> = { add: 0.9, write: 1.3, connect: 0.7, highlight: 0.5 };
+// Slow enough to watch the marker trace each stroke and write each label.
+const DRAW_SECONDS: Record<Action["kind"], number> = { add: 1.5, write: 1.8, connect: 1.1, icon: 2.2, sketch: 2.2, highlight: 0.8 };
 const MIN_HIGHLIGHT = 1.6;
+/** Shortest a stroke may be squeezed to so it still reads as drawn. */
+const MIN_DRAW = 0.4;
 /** A dependent action starts at least this long after the element it uses. */
 const DEPENDENCY_GAP = 0.25;
 
@@ -65,28 +68,36 @@ export function compileTimeline(lesson: Lesson, clock: CharClock): Timeline {
   });
 
   const events: TimelineEvent[] = [];
-  const shownAt = new Map<string, number>();
+  const doneAt = new Map<string, number>();
   let seq = 0;
+  // One marker: a stroke starts only when the previous one is finished.
+  let penFree = 0;
 
   spans.forEach((span, beatIndex) => {
     const beat = lesson.scenes[span.sceneIndex].beats[span.beatIndex];
     const timedBeat = beats[beatIndex];
     const sceneEnd = scenes[span.sceneIndex].end;
+    if (beatIndex > 0 && spans[beatIndex - 1].sceneIndex !== span.sceneIndex) penFree = timedBeat.start;
 
     for (const action of beat.actions) {
       const cueOffset = findCue(beat.sentence, action.cue);
-      let start = cueOffset === -1 ? timedBeat.start : timeAt(span.start + cueOffset);
+      const cued = cueOffset === -1 ? timedBeat.start : timeAt(span.start + cueOffset);
+      let start = Math.max(cued, penFree);
 
       const deps = action.kind === "connect" ? [action.from, action.to] : action.kind === "highlight" ? [action.target] : [];
-      for (const dep of deps) start = Math.max(start, (shownAt.get(dep) ?? start) + DEPENDENCY_GAP);
-      start = Math.min(start, Math.max(timedBeat.start, sceneEnd - DRAW_SECONDS[action.kind]));
+      for (const dep of deps) start = Math.max(start, (doneAt.get(dep) ?? start) + DEPENDENCY_GAP);
 
-      const end =
-        action.kind === "highlight"
-          ? Math.min(sceneEnd, Math.max(timedBeat.end, start + MIN_HIGHLIGHT))
-          : Math.min(start + DRAW_SECONDS[action.kind], Math.max(sceneEnd, start + 0.1));
+      // If the marker has fallen behind the narration, it draws faster to catch up.
+      const lag = start - cued;
+      let draw = DRAW_SECONDS[action.kind] * (lag > 1.5 ? 0.5 : lag > 0.6 ? 0.75 : 1);
+      // Near the end of a scene the stroke gets quicker; it never starts before its cue.
+      start = Math.min(start, Math.max(cued, sceneEnd - MIN_DRAW));
+      draw = Math.max(MIN_DRAW, Math.min(draw, sceneEnd - start));
 
-      if (action.kind !== "highlight") shownAt.set(action.id, start);
+      const end = action.kind === "highlight" ? Math.min(sceneEnd, Math.max(timedBeat.end, start + MIN_HIGHLIGHT)) : start + draw;
+      penFree = start + (action.kind === "highlight" ? Math.min(draw, end - start) : draw);
+
+      if (action.kind !== "highlight") doneAt.set(action.id, start + draw);
       events.push({ seq: seq++, sceneIndex: span.sceneIndex, beatIndex, start, end, action });
     }
   });
@@ -151,7 +162,7 @@ export function boardStateAt(timeline: Timeline, rawT: number): BoardState {
     .filter((e) => e.action.kind === "highlight" && t < e.end)
     .map((e) => {
       const a = e.action as Extract<Action, { kind: "highlight" }>;
-      return { target: a.target, style: a.style, progress: Math.min(1, (t - e.start) / 0.5) };
+      return { target: a.target, style: a.style, progress: Math.min(1, (t - e.start) / DRAW_SECONDS.highlight) };
     });
 
   const drawn = visible.filter((e) => e.action.kind !== "highlight");

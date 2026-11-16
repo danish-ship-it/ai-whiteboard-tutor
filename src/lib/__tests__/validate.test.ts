@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Lesson } from "../lesson/schema";
+import type { Lesson, LessonDraft } from "../lesson/schema";
 import { validateLesson } from "../lesson/validate";
 import { pythagoras } from "./fixtures";
 
@@ -40,5 +40,37 @@ describe("tone clashes", () => {
     const tones = lesson.scenes[0].beats.flatMap((b) => b.actions).flatMap((a) => ("tone" in a ? [a.tone] : []));
     expect(tones).not.toContain("purple");
     expect(issues.some((i) => i.includes("purple next to green"))).toBe(true);
+  });
+});
+
+describe("icons", () => {
+  const withIcon = (icon: string) => {
+    const raw = clone();
+    raw.scenes[0].beats[0].actions.push({ kind: "icon", id: "pic", icon, label: "", col: 7, row: 3, w: 2, h: 2, tone: "blue", cue: "" });
+    return validateLesson(raw).lesson.scenes[0].beats[0].actions.find((a) => "id" in a && a.id === "pic")!;
+  };
+
+  it("keeps catalogue names and maps near misses", () => {
+    expect(withIcon("sun")).toMatchObject({ kind: "icon", icon: "sun" });
+    expect(withIcon("Saturn")).toMatchObject({ kind: "icon", icon: "planet-ringed" });
+    expect(withIcon("planets")).toMatchObject({ kind: "icon", icon: "planet-small" });
+  });
+
+  it("turns an unknown picture into a labelled circle", () => {
+    expect(withIcon("unicorn")).toMatchObject({ kind: "add", shape: "circle", label: "unicorn" });
+  });
+});
+
+describe("pictures from the model", () => {
+  it("splits a picture into an icon or a sketch", () => {
+    const raw = structuredClone(pythagoras) as unknown as LessonDraft;
+    const base = { label: "", col: 6, row: 2, w: 2, h: 2, tone: "blue", cue: "" } as const;
+    raw.scenes[0].beats[0].actions.push(
+      { ...base, kind: "picture", id: "p1", draw: "earth" },
+      { ...base, kind: "picture", id: "p2", draw: "~ 5,95 5,5 120,95 bad z", col: 0, row: 3 },
+    );
+    const actions = validateLesson(raw).lesson.scenes[0].beats[0].actions;
+    expect(actions.find((a) => "id" in a && a.id === "p1")).toMatchObject({ kind: "icon", icon: "earth" });
+    expect(actions.find((a) => "id" in a && a.id === "p2")).toMatchObject({ kind: "sketch", points: "5,95 5,5 100,95", closed: true, smooth: true });
   });
 });

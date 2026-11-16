@@ -66,7 +66,8 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
   const sheet = useRef<HTMLDialogElement>(null);
 
   const scene = timeline.scenes[state.sceneIndex];
-  const titleProgress = state.sceneIndex === 0 ? 1 : Math.min(1, Math.max(0, (time - scene.start) / 0.6));
+  // Later scenes open with the marker writing the title (the first is already on the board at Start).
+  const titleProgress = state.sceneIndex === 0 ? 1 : Math.min(1, Math.max(0, (time - scene.start) / 1.2));
   const ready = status === "ready" && time === 0;
   const ended = status === "ended";
 

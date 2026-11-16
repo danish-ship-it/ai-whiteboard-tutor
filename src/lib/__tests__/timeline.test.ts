@@ -34,6 +34,24 @@ describe("compileTimeline", () => {
   });
 });
 
+describe("one marker", () => {
+  it("never starts a stroke before its cue and never draws two at once", () => {
+    const { lesson, text, timeline } = build();
+    const { spans } = buildNarration(lesson);
+    const drawn = timeline.events.filter((e) => e.action.kind !== "highlight");
+    for (const e of drawn) {
+      const span = spans[e.beatIndex];
+      const sentence = lesson.scenes[span.sceneIndex].beats[span.beatIndex].sentence;
+      const cue = e.action.cue ? sentence.indexOf(e.action.cue) : 0;
+      const cueTime = text.indexOf(sentence) / 15 + Math.max(cue, 0) / 15;
+      expect(e.start).toBeGreaterThanOrEqual(cueTime - 1e-6);
+    }
+    for (let i = 1; i < drawn.length; i++) {
+      if (drawn[i].sceneIndex === drawn[i - 1].sceneIndex) expect(drawn[i].start).toBeGreaterThanOrEqual(drawn[i - 1].end - 1e-6);
+    }
+  });
+});
+
 describe("boardStateAt", () => {
   it("is a pure function of time: seeking equals playing", () => {
     const { timeline } = build();

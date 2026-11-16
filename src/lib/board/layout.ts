@@ -1,4 +1,5 @@
-import { GRID_COLS, GRID_ROWS, type Lesson, type Tone } from "../lesson/schema";
+import { GRID_COLS, GRID_ROWS, parsePoints, type Lesson, type SketchAction, type Tone } from "../lesson/schema";
+import { ICONS, type IconName } from "./icons";
 
 export const BOARD_W = 1600;
 export const BOARD_H = 900;
@@ -21,9 +22,20 @@ export interface Box {
   h: number;
 }
 
+/** A drawing (icon or freehand sketch) as one path, placed with translate + uniform scale. */
+export interface Picture {
+  d: string;
+  tx: number;
+  ty: number;
+  scale: number;
+}
+
 export interface ShapeGeometry extends Box {
   id: string;
-  kind: "shape" | "write";
+  kind: "shape" | "write" | "picture";
+  /** Pictures only: the drawing, and the band under it where the caption is written. */
+  picture?: Picture;
+  textBox?: Box;
   shape: "box" | "circle" | "pill" | "note" | "none";
   lines: string[];
   fontSize: number;
@@ -81,6 +93,16 @@ export function layoutLesson(lesson: Lesson): SceneLayout[] {
         const pad = shape === "none" ? 4 : shape === "circle" ? box.w * 0.16 : 18;
         const { lines, fontSize } = fitText(text, box.w - pad * 2, box.h - pad, action.kind === "write" ? 64 : 56);
         shapes[action.id] = { id: action.id, kind: action.kind === "add" ? "shape" : "write", shape, ...box, lines, fontSize, tone: action.tone };
+      } else if (action.kind === "icon" || action.kind === "sketch") {
+        const cells = placeWithoutOverlap({ col: action.col, row: action.row, w: action.w, h: action.h }, occupied);
+        markCells(cells, occupied);
+        const box = cellsToBox(cells);
+        const band = action.label ? Math.min(76, box.h * 0.3) : 0;
+        const art: Box = { x: box.x, y: box.y, w: box.w, h: box.h - band };
+        const textBox: Box = { x: box.x - 20, y: box.y + box.h - band, w: box.w + 40, h: band };
+        const { lines, fontSize } = action.label ? fitText(action.label, textBox.w, band, 44) : { lines: [], fontSize: 44 };
+        const picture = action.kind === "icon" ? placeIcon(ICONS[action.icon as IconName] ?? ICONS["circle-dot"], art) : sketchPicture(action, art);
+        shapes[action.id] = { id: action.id, kind: "picture", shape: "none", ...box, lines, fontSize, tone: action.tone, picture, textBox };
       } else if (action.kind === "connect") {
         const a = shapes[action.from];
         const b = shapes[action.to];
@@ -144,6 +166,32 @@ export function placeWithoutOverlap(wanted: Cells, occupied: Set<string>): Cells
 }
 
 /** Word-wraps `text` into the box, shrinking the font until it fits (or reaches the minimum). */
+/** Centres a 24x24 icon in the art box, as large as fits. */
+function placeIcon(d: string, art: Box): Picture {
+  const size = Math.min(art.w, art.h) * 1.05; // Lucide icons carry their own 2px margin
+  return { d, scale: size / 24, tx: art.x + (art.w - size) / 2, ty: art.y + (art.h - size) / 2 };
+}
+
+/** Maps sketch points (0-100 in the element's box) onto the board; smooth sketches become Catmull-Rom curves. */
+export function sketchPicture(action: Pick<SketchAction, "points" | "closed" | "smooth">, art: Box): Picture {
+  const pad = 10;
+  const pts = parsePoints(action.points).map((p) => ({ x: art.x + pad + (p.x / 100) * (art.w - pad * 2), y: art.y + pad + (p.y / 100) * (art.h - pad * 2) }));
+  const f = (n: number) => n.toFixed(1);
+  let d = `M${f(pts[0].x)} ${f(pts[0].y)}`;
+  if (!action.smooth || pts.length < 3) {
+    for (const p of pts.slice(1)) d += ` L${f(p.x)} ${f(p.y)}`;
+    return { d: action.closed ? `${d} Z` : d, tx: 0, ty: 0, scale: 1 };
+  }
+  const ring = action.closed ? [pts[pts.length - 1], ...pts, pts[0], pts[1]] : [pts[0], ...pts, pts[pts.length - 1]];
+  for (let i = 1; i < ring.length - 2; i++) {
+    const [p0, p1, p2, p3] = [ring[i - 1], ring[i], ring[i + 1], ring[i + 2]];
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+    const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    d += ` C${f(c1.x)} ${f(c1.y)} ${f(c2.x)} ${f(c2.y)} ${f(p2.x)} ${f(p2.y)}`;
+  }
+  return { d, tx: 0, ty: 0, scale: 1 };
+}
+
 export function fitText(text: string, maxW: number, maxH: number, startSize: number): { lines: string[]; fontSize: number } {
   const words = text.split(/\s+/).filter(Boolean);
   for (let size = startSize; size >= MIN_FONT; size -= 2) {

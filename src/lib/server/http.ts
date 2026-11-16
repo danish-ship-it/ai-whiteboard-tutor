@@ -39,6 +39,7 @@ export function errorResponse(error: unknown) {
   }
   try {
     const tutor = toTutorError(error);
+    if (tutor.status >= 500) console.error("AI request failed:", (error as Error).message?.slice(0, 500));
     return jsonError(tutor.message, tutor.status);
   } catch (unknownError) {
     console.error(unknownError);

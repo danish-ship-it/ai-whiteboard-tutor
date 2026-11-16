@@ -1,4 +1,5 @@
-import { GRID_COLS, GRID_ROWS, type Action, type Lesson, type Scene, type Tone } from "./schema";
+import { ICONS, type IconName } from "../board/icons";
+import { GRID_COLS, GRID_ROWS, isElement, parsePoints, type Action, type Lesson, type LessonDraft, type PictureAction, type Scene, type Tone } from "./schema";
 
 export class LessonValidationError extends Error {}
 
@@ -72,7 +73,7 @@ function separateClashingTones(scene: Scene, issues: string[]) {
   }
 }
 
-export function validateLesson(raw: Lesson): ValidationResult {
+export function validateLesson(raw: Lesson | LessonDraft): ValidationResult {
   const issues: string[] = [];
   const usedIds = new Set<string>();
 
@@ -96,17 +97,35 @@ export function validateLesson(raw: Lesson): ValidationResult {
         const beatId = uniqueId(beat.id, `${sceneId}-b${beat.bi + 1}`);
         const actions: Action[] = [];
 
-        for (const action of beat.actions.slice(0, LIMITS.actionsPerBeat)) {
+        for (const draft of beat.actions.slice(0, LIMITS.actionsPerBeat)) {
+          const action = draft.kind === "picture" ? fromPicture(draft) : draft;
           const cue = findCue(beat.sentence, action.cue) === -1 ? "" : action.cue.trim();
           if (action.cue.trim() && !cue) issues.push(`cue "${action.cue}" not in sentence; using sentence start`);
 
           switch (action.kind) {
+            case "icon": {
+              const icon = resolveIcon(action.icon);
+              if (icon) {
+                action.icon = icon;
+              } else {
+                // Unknown picture: keep the idea on the board as a labelled circle.
+                issues.push(`unknown icon "${action.icon}"; drawing a labelled circle`);
+                const label = action.label.trim() || action.icon.slice(0, 20);
+                delete (action as Partial<typeof action>).icon;
+                Object.assign(action, { kind: "add", shape: "circle", label });
+              }
+            }
+            // falls through
             case "add":
-            case "write": {
+            case "write":
+            case "sketch": {
               const id = uniqueId(action.id, `${sceneId}-el${actions.length + 1}`);
               onBoard.set(action.id, id);
-              const w = clamp(action.w, 1, action.kind === "write" ? 6 : 4);
-              const h = clamp(action.h, 1, 2);
+              const maxW = { add: 4, write: 6, icon: 3, sketch: 6 }[action.kind];
+              // A one-cell picture is too small to recognise, so pictures are at least 2x2.
+              const minSide = action.kind === "icon" || action.kind === "sketch" ? 2 : 1;
+              const w = clamp(action.w, minSide, maxW);
+              const h = clamp(action.h, minSide, action.kind === "sketch" ? 3 : 2);
               actions.push({
                 ...action,
                 id,
@@ -115,8 +134,16 @@ export function validateLesson(raw: Lesson): ValidationResult {
                 h,
                 col: clamp(action.col, 0, GRID_COLS - w),
                 row: clamp(action.row, 0, GRID_ROWS - h),
-                ...(action.kind === "add" ? { label: action.label.trim() } : { text: action.text.trim() }),
+                ...(action.kind === "write" ? { text: action.text.trim() } : { label: action.label.trim() }),
+                ...(action.kind === "sketch"
+                  ? { points: parsePoints(action.points).slice(0, 24).map((p) => `${clamp(Math.round(p.x), 0, 100)},${clamp(Math.round(p.y), 0, 100)}`).join(" ") }
+                  : {}),
               } as Action);
+              if (action.kind === "sketch" && parsePoints(action.points).length < 2) {
+                actions.pop();
+                onBoard.delete(action.id);
+                issues.push(`dropped sketch "${action.id}": fewer than 2 points`);
+              }
               break;
             }
             case "connect": {
@@ -173,7 +200,7 @@ export function validateLesson(raw: Lesson): ValidationResult {
 
   const beats = lesson.scenes.flatMap((s) => s.beats);
   const words = countWords(beats.map((b) => b.sentence).join(" "));
-  const drawn = beats.flatMap((b) => b.actions).filter((a) => a.kind === "add" || a.kind === "write").length;
+  const drawn = beats.flatMap((b) => b.actions).filter(isElement).length;
 
   if (!lesson.title) throw new LessonValidationError("Lesson has no title.");
   if (lesson.scenes.length < LIMITS.scenes[0]) throw new LessonValidationError("Lesson has no scenes.");
@@ -184,4 +211,33 @@ export function validateLesson(raw: Lesson): ValidationResult {
   if (drawn < LIMITS.drawnElements) throw new LessonValidationError("Lesson draws too little on the board.");
 
   return { lesson, issues };
+}
+
+/** Splits the model's "picture" into a catalogue icon or a freehand sketch ("~" smooth, "z" closed). */
+export function fromPicture({ draw, ...rest }: PictureAction): Action {
+  const text = draw.trim();
+  if (!/\d/.test(text)) return { ...rest, kind: "icon", icon: text };
+  const smooth = text.startsWith("~");
+  const closed = /z$/i.test(text);
+  const points = text.replace(/^~/, "").replace(/z$/i, "").trim();
+  return { ...rest, kind: "sketch", points, closed, smooth };
+}
+
+const ICON_ALIASES: Record<string, IconName> = {
+  planet: "planet-small", saturn: "planet-ringed", jupiter: "planet-banded", uranus: "planet-ringed", neptune: "planet-banded",
+  mars: "planet-small", mercury: "planet-small", venus: "planet-small", world: "earth", "solar-system": "orbit", stars: "star",
+  water: "droplet", rain: "cloud-rain", light: "lightbulb", idea: "lightbulb", electricity: "zap", energy: "zap", plant: "sprout",
+  person: "user", people: "users", money: "coins", computer: "laptop", phone: "smartphone", chart: "chart-line", graph: "chart-line",
+  search: "magnifier", ocean: "waves", sea: "waves", fire: "flame", heat: "flame", cold: "snowflake", tree: "tree-deciduous",
+};
+
+/** Maps a model-written icon name onto the catalogue, or null when nothing fits. */
+export function resolveIcon(raw: string): IconName | null {
+  const name = raw.trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const candidates = [name, name.replace(/s$/, ""), name.replace(/-icon$/, "")];
+  for (const c of candidates) {
+    if (c in ICONS) return c as IconName;
+    if (c in ICON_ALIASES) return ICON_ALIASES[c];
+  }
+  return null;
 }
