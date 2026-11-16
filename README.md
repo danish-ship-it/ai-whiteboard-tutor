@@ -1,34 +1,67 @@
 # Chalk: an AI whiteboard tutor
 
-Type a topic and get a lesson of about two minutes. A tutor's voice explains it while a whiteboard draws pictures of the subject (planets, leaves, cells, triangles, orbits), arrows, labels and equations in step with the words. You can pause, scrub, change speed, replay, ask follow-up questions, finish with a short recall quiz, and come back to any lesson later without waiting again.
+Type a topic and get a lesson of about two minutes. A tutor's voice explains it while a hand-drawn whiteboard sketches the subject (planets, leaves, cells, triangles, orbits), arrows, labels and equations in step with the words. Pause, scrub, ask a follow-up question at any moment, finish with a short recall quiz, come back to any lesson later, or download it as a video.
 
 **Live demo:** https://ai-whiteboard-tutor-wine.vercel.app
 
-**Fastest way to judge it:** open the live demo and pick one of the three ready-made lessons under *Watch one now* (planets, photosynthesis, Pythagoras). They play instantly with no AI wait. Then type your own topic, choose Kids, Teens or Adults, and ask a follow-up question at any point.
+![How Chalk works: you type a topic, Claude writes the lesson, a voice with word timings, the board is a function of time, then watch, ask and recall](docs/images/how-it-works.jpg)
 
-| Photosynthesis: the marker draws the sun, leaf, water and CO₂ as they are named | Planets: a follow-up answer jumps to the giants and points at them |
+## Review it in two minutes
+
+1. Open the live demo. On the sign-in page, click **Braynix Review**. It signs you into a demo school with one click; no password is needed or shown.
+2. Under *Watch one now*, open **How photosynthesis works**. Ready-made lessons play instantly with no AI wait.
+3. While it plays, type a question in *Ask about this lesson*. The answer points at the drawings it talks about.
+4. Click **Download video** to get the lesson, board and voice, as an MP4 made in your browser.
+5. Type your own topic, pick Kids, Teens or Adults, and watch a new lesson being made live (about 30–40 s).
+6. Sign out and sign in as **Maple Elementary**: it is a separate school and can't see Braynix Review's lessons.
+
+| The sketchbook board: hand lettering, pencil lines that boil, the step's photo pinned on | A follow-up answer jumps to the giants and points at them |
 |---|---|
-| ![Photosynthesis lesson](docs/screenshots/photosynthesis.jpg) | ![Planets lesson with a follow-up answer](docs/screenshots/planets-question.jpg) |
+| ![Sketchbook board during the chloroplast step](docs/screenshots/sketchbook-player.jpg) | ![Planets lesson with a follow-up answer](docs/screenshots/planets-question.jpg) |
 | **Home:** demos, saved lessons, audience selector | **Kids mode:** "Why is the sky blue?" for ages 8–12 |
 | ![Home screen](docs/screenshots/home.jpg) | ![Kids lesson](docs/screenshots/kids-sky.jpg) |
 
 Built for the Braynix Studios technical assignment "AI-Powered Interactive Whiteboard Tutor".
 
+## The idea
+
+**Who it is for:** a curious learner, from a 9-year-old to an adult, who has a question right now ("how does photosynthesis work?") and a teacher who wants a short visual explanation for a class.
+
+**The problem:** text answers from a chatbot are walls of words, and video explainers exist only for popular topics. The best explanation is a teacher at a whiteboard: talking and drawing at the same time, pointing at what they mean, and stopping for questions.
+
+**What Chalk does about it:** it makes that whiteboard lesson for any topic on demand. Claude plans the lesson as spoken sentences plus board actions, a voice reads it, and the board draws each thing at the moment it is named. The learner can interrupt with a question at any time, and the lesson ends with retrieval practice, because recalling beats re-reading.
+
 ## What it does
 
-1. **Ask.** Type a topic or question on the home screen and choose who it is for (Kids 8–12, Teens, Adults), or open a ready-made demo.
-2. **Generate.** Claude writes a structured lesson: a teaching arc split into 3 scenes. Each spoken sentence carries the board actions that happen while it is said. While ElevenLabs records the narration (with per-character timestamps), the screen already shows the lesson's steps.
-3. **Watch.** One marker draws the board, one stroke at a time, starting each element on its cue word. Pictures come from 169 hand-drawable icons (Lucide plus hand-drawn planets, cells, molecules and more) or are sketched by Claude from points: orbits, right triangles, waves, graphs. The caption highlights the spoken word. A slow camera leans in on whatever is being drawn and pulls back between steps; finished drawings keep moving while the lesson plays (the sun turns, leaves sway, planets float, dots flow along arrows, a pointer traces curves), and the element being explained is swept with a highlighter. Everything pauses with the lesson, is derived from the playback time so seeking lands on the right frame, and is off under reduced motion and on phone-sized boards.
-4. **Control.** Play, pause, resume, seek on a timeline with step markers, go back or forward one sentence, restart, replay, 0.75×–1.5× speed, and captions on or off, and full screen (board, captions and controls together; it falls back to filling the window where the browser refuses full screen). Tap the step picture to enlarge it. Keyboard: Space, ← / →, R.
-5. **Ask.** Follow-up questions are answered in the context of the lesson. When an answer refers to something on the board, the player jumps to that scene and emphasises those elements.
-6. **See it for real.** A realistic AI picture of the current step is pinned to a corner of the board (**BBANANA** or **Runway**), and then comes to life as a 5-second clip that plays and pauses with the lesson. The board layout keeps that corner free. The three demos ship with a picture and clip for every step; new lessons make theirs while you watch (when the server has a BBANANA or Runway key).
-7. **Recall.** At the end, 2–3 questions ask the learner to retrieve what they were taught, each with feedback and a link back to the scene that taught it.
-8. **Sign in to a school.** Each school (tenant) sees only its own lessons. Two demo schools, *Braynix Review* and *Maple Elementary*, sign in with one click on `/login`.
-9. **Come back.** Every finished lesson is saved to the school's database with its audio, picture and clip, under *Your lessons*. Opening one replays it with no AI calls. Without Supabase configured, the app skips sign-in and saves lessons in the browser (IndexedDB) instead.
+1. **Ask.** Type a topic or question and choose who it is for (Kids 8–12, Teens, Adults), or open a ready-made demo.
+2. **Generate.** Claude writes a structured lesson: a teaching arc split into 3 scenes, each spoken sentence carrying the board actions that happen while it is said. While ElevenLabs records the narration (with per-character timestamps), the screen already shows the lesson's steps.
+3. **Watch.** One marker draws the board, one stroke at a time, starting each element on its cue word. Pictures come from 169 hand-drawable icons or are sketched by Claude from points (orbits, triangles, waves, graphs). The caption highlights the spoken word.
+4. **A living sketchbook.** The board is drawn like an animated pencil sketch, after the sketchbook style of [cth9191/animate](https://github.com/cth9191/animate): lines *boil* (every stroke cycles through three hand-drawn takes, so it trembles like hand animation while its shape never moves), each outline is pencilled and then inked with a second pass that doesn't quite agree, labels are hand lettered, the page has a dot grid, a vignette and a coffee ring, the title gets a red marker underline, and each new step slides onto the page with a small spring. A slow camera leans in on what is being drawn, finished drawings keep moving (the sun turns, leaves sway, dots flow along arrows), and everything pauses with the lesson and is off under reduced motion.
+5. **Control.** Play, pause, seek on a timeline with step markers, step one sentence back or forward, restart, 0.75×–1.5× speed, captions, full screen. Keyboard: Space, ← / →, R.
+6. **Ask.** Follow-up questions are answered in the context of the lesson. When an answer refers to something on the board, the player jumps to that scene and highlights those drawings.
+7. **See it for real.** A realistic AI picture of each step is pinned to a corner of the board like a photo, then comes to life as a 5-second clip that plays and pauses with the lesson.
+8. **Download the lesson as a video.** One click records the board and the voice into an MP4 (WebM where MP4 isn't supported), 1280×720, with the step pictures. It is rendered entirely in the browser from the same timeline the player uses, so nothing is uploaded.
+9. **Recall.** At the end, 2–3 questions ask the learner to retrieve what was taught, with feedback and a link back to the scene that taught it.
+10. **Schools.** Each school (tenant) signs in and sees only its own lessons. Every finished lesson is saved with its audio, pictures and clips, and replays later with no AI calls.
 
-If the voice fails, the lesson still plays with captions only on a virtual clock. The layout works on phones, tablets and desktops, in light and dark themes, with reduced motion, reduced transparency and high contrast.
+If the voice fails, the lesson still plays with captions on a virtual clock. The layout works on phones, tablets and desktops, in light and dark themes, with reduced motion, reduced transparency and high contrast.
+
+## What is live and what is prerecorded
+
+| Capability | Status |
+|---|---|
+| Lesson writing (Claude `claude-opus-5-5`) | **Live** for every typed topic |
+| Narration with word timings (ElevenLabs) | **Live** for every typed topic |
+| Follow-up answers (Claude) | **Live**, including on the demo lessons |
+| Step pictures and clips (BBANANA) | **Live** for new lessons when the server has a key; each school has a daily budget |
+| Whiteboard drawing, animation, camera | **Computed** in the browser from the lesson and the audio timings; no video model involved |
+| Download video | **Computed** in the browser from the same timeline |
+| The three *Watch one now* lessons | **Prerecorded**: lesson, narration, pictures and clips are stored in the repository so reviewers can watch without waiting or spending |
+| Demo schools | Real accounts in a real database, with a password kept on the server; the buttons sign in through a server route |
 
 ## How the sync works
+
+![One clock: the board is a pure function of playback time](docs/images/sync-clock.jpg)
 
 The core design choice: **the board is a pure function of media time.**
 
@@ -45,62 +78,85 @@ topic
 ```
 
 - **One clock.** A single `<audio>` element is the master clock, read every animation frame. Nothing is scheduled with timers, so seeking, pausing, speed changes and replay can't drift. Seeking anywhere shows the correct board immediately.
-- **Sentence anchoring.** Every board action belongs to a sentence (beat) and can name a cue word inside it. The validator checks that the cue really occurs in the sentence (whole-word match). Connectors and highlights wait at least 0.25 s after the elements they depend on.
-- **The model never sends pixels.** Claude places elements on a 10×5 grid. Layout, text fitting, overlap avoidance and the hand-drawn look (seeded jitter, so the same lesson always draws the same way) happen in code.
-- **One marker.** Strokes never overlap: each starts at its cue word or when the previous stroke ends, whichever is later, and never before its cue. Near the end of a step the marker draws faster instead of starting early. A unit test checks both rules on every event.
-- **Pictures without pixels.** The model names an icon or writes sketch points (`"~ 50,10 80,18 … z"`), never SVG. The validator maps near-miss names (`"Saturn"` → ringed planet), turns unknown ones into a labelled circle, clamps points, and keeps pictures at least 2×2 cells so they stay recognisable. One combined `picture` action keeps the structured-output schema small enough for the API's grammar limit.
-- **Stale work is dropped.** Lesson generations carry ids, so a cancelled or superseded request can't overwrite a newer one. Playback operations carry tokens, so a late `play()` promise can't resume a paused lesson.
+- **The same function makes the video.** The exporter calls `boardStateAt(t)` for each frame, renders the board to SVG, rasterises it to a canvas and records it with the narration. The boil, camera and spring are pure functions of time too, so a frame is identical however it was reached (a unit test checks this).
+- **Sentence anchoring.** Every board action belongs to a sentence and can name a cue word inside it. The validator checks that the cue really occurs in the sentence. Connectors and highlights wait for the elements they depend on.
+- **The model never sends pixels.** Claude places elements on a grid and names icons or writes sketch points (`"~ 50,10 80,18 … z"`), never SVG. Layout, text fitting, overlap avoidance and the hand-drawn look (seeded jitter, so a lesson always draws the same way) happen in code.
+- **One marker.** Strokes never overlap: each starts at its cue word or when the previous stroke ends, whichever is later. A unit test checks this on every event.
+- **Stale work is dropped.** Generations carry ids and playback operations carry tokens, so a late answer can't overwrite newer state.
 
 ## Learning design
 
-The UI follows a short evidence review in [`research/`](research/learning-ux-report.md). Shipped from it:
+The UI follows a short evidence review in [`research/`](research/learning-ux-report.md):
 
-- **Marker nib instead of a talking-head avatar.** Studies find that a face on screen adds load without improving learning, while pointing at the diagram does help.
-- **End-of-lesson retrieval practice** with immediate explanatory feedback.
-- **Colour-blind-safe inks:** green never appears with teal, nor brick with ochre, in the same scene. Labels always carry the meaning, never colour alone.
-- Narration and the drawing appear together (temporal contiguity), the current element is signalled, a lesson is short and split into steps, and the caption highlights the spoken word.
+- **A marker nib instead of a talking-head avatar.** A face on screen adds load without improving learning; pointing at the diagram helps.
+- **Narration and drawing together** (temporal contiguity), the current element signalled, short lessons split into steps, the spoken word highlighted in the caption.
+- **Pictures of the subject in every step** (dual coding).
+- **End-of-lesson retrieval practice** with explanatory feedback.
+- **Audience selector** that changes vocabulary, examples and pace; 0.75× speed and captions for different reading and listening speeds.
+- **Colour-blind-safe inks:** clashing pairs never share a scene, and labels always carry the meaning.
 
-- **Audience selector** (Kids 8–12, Teens 13–17, Adults) changes vocabulary, examples and pace; **0.75× speed** and a **captions toggle** for different reading and listening speeds.
-- **Pictures of the subject in every step** (dual coding): the prompt requires at least one drawing of the actual thing per scene.
+## Schools and security
 
-Still deferred from the research: check questions at the end of each step (end-of-lesson recall covers retrieval for now).
+![Each school sees only its own lessons, separated by row-level security](docs/images/schools.jpg)
 
-## Built with two agents
+- **Tenant isolation lives in the database.** Postgres row-level security decides who sees which lessons and narration files, through a `security definer` helper. `scripts/check-tenants.mjs` signs in as both demo schools and checks 12 cases (read, edit, delete, insert and audio across schools, and signed-out access).
+- **Paid routes need a school member.** Every route that spends money (lesson, voice, questions, pictures) requires a signed-in member of a school; an account with no school gets 403, and production refuses to run them without sign-in configured.
+- **Daily budget per school** (40 lessons, 40 narrations, 200 questions, 120 pictures, 30 clips), counted by one atomic database statement, so it holds across server instances and concurrent requests.
+- **Signed lessons.** Lessons are signed with HMAC-SHA256 and expire after 12 hours, so the voice and question endpoints can't be used to synthesise or prompt arbitrary text. The picture endpoint only illustrates scenes of a lesson this server signed.
+- **No secrets in the repository or the browser.** Keys live in server environment variables; only the Supabase URL and publishable key reach the browser, by design. The repository and its full git history were scanned for keys before submission.
+- Request bodies are capped while streaming, inputs are size-limited, rate limits apply per user, the learner's topic is passed to Claude as subject matter only, and security headers are set on every route.
 
-The plan and parts of the code came from a Claude Code + OpenAI Codex pairing: each drafted a plan independently, critiqued the other's, and the merged plan (with a table of disagreements decided by the owner) is in `.duo/`. Codex built the IndexedDB history store, the request/token hardening and their tests in separate git worktrees; Claude reviewed and merged them.
+## Built in an afternoon, by two AI agents and one engineer
+
+From an empty folder to the deployed app took **about 4.5 hours** of wall-clock time on 16–17 November 2026, using Claude Code (Claude Opus 5.5) as the main engineer and OpenAI Codex (GPT-6) as a second agent for planning critique, blind code reviews and the README illustrations.
+
+| | |
+|---|---|
+| Wall-clock time, first file to production | **≈ 4.5 hours** |
+| Claude Code: model calls | 950 |
+| Claude Code: tokens written (output) | 0.71 M |
+| Claude Code: tokens read | 239.7 M, of which **99 % came from the prompt cache** (2.4 M fresh) |
+| Codex: tokens across 19 review and planning sessions | 13.0 M |
+| Result | ~8,100 lines of TypeScript, 132 unit tests, 4 end-to-end tests, 16 commits |
+
+How the work was split:
+
+- **Plan, then critique.** Claude and Codex each drafted a plan without seeing the other's, then critiqued each other's; the merged plan and a table of disagreements decided by the engineer are in [`.duo/`](.duo/).
+- **Build in parallel.** Codex built the IndexedDB history store and the request hardening in separate git worktrees; Claude reviewed and merged them.
+- **Review blind.** Before each release Codex reviewed the diff without Claude's conclusions. The last review found five real issues in the video exporter (Safari audio activation, cleanup on a failed start, cancelling during preparation, a double start, missing pictures); all were fixed before shipping.
+- **Verify in a real browser.** Every visible change was checked in a browser, including recording a full lesson to video and inspecting the file's length, resolution, audio and frames.
+
+Token counts come from the Claude Code and Codex session logs on the development machine. Cached reads are what makes long agent sessions affordable: the conversation is re-read from cache on every step instead of being processed again.
 
 ## Tech stack
 
 - **Next.js 16** (App Router), **React 19**, **TypeScript** (strict), **Tailwind CSS 4**
-- **Claude** (`claude-opus-5-5`) through `@anthropic-ai/sdk`, with structured output validated by **Zod**
+- **Claude** (`claude-opus-5-5`) through `@anthropic-ai/sdk`, structured output validated by **Zod**
 - **ElevenLabs** text-to-speech with timestamps (`eleven_multilingual_v2`)
-- **BBANANA** for step illustrations (Nano Banana 2.1) and 5-second clips (Grok Imagine Video 1.5 Lite), called through its MCP endpoint
-- **Runway** API as the alternative provider (`gen4_image`, `gen4_turbo`); the demo clips were made with it
-- **Playwright** browser tests and **GitHub Actions** CI (typecheck, lint, unit tests, build, e2e)
-- **Vitest** for unit tests; deployed on **Vercel**
+- **BBANANA** for step pictures (Nano Banana 2.1) and 5-second clips (Grok Imagine Video 1.5 Lite); **Runway** as the alternative provider
+- **Supabase**: Postgres with row-level security, auth, private storage for narration
+- **MediaRecorder + Canvas** for the in-browser video export; **Kalam** for hand lettering
+- **Vitest**, **Playwright**, **GitHub Actions** CI; deployed on **Vercel**
 
 ```
 src/
-  app/                  page + API routes: /api/lesson, /api/narration, /api/ask, /api/demo, /api/visual
+  app/                  page + API routes: /api/lesson, /api/narration, /api/ask, /api/demo, /api/visual, /api/auth/demo
   app/login/            sign-in page (demo schools and email/password)
   proxy.ts              refreshes the session and sends signed-out visitors to /login
-  components/           HomeView, GeneratingView, AppHeader, AccountMenu, ui/
-    board/Whiteboard    SVG renderer for one board state (no timers)
-    player/             PlayerView, Transport, Questions, Recall, BoardPhoto
-  hooks/                usePlayback (audio or virtual clock), useLessonSession (generation, demos, saved lessons),
-                        useLessonQuestions (one follow-up conversation per lesson), useSceneVisuals (picture and clip tasks)
+  components/
+    board/Whiteboard    SVG renderer for one board state (no timers): boil, paper, camera, scene entrance
+    player/             PlayerView, Transport, Questions, Recall, BoardPhoto, VideoExport
+  hooks/                usePlayback (audio or virtual clock), useLessonSession, useLessonQuestions, useSceneVisuals
   lib/
     lesson/             schema, validation and repair, narration text
-    board/              grid layout, hand-drawn sketch paths, icons (generated by scripts/build-icons.mjs)
-    demos/              three recorded demo lessons (audio and Runway clips in public/demos)
-    storage/            lesson history: Supabase per school (cloud-history) or IndexedDB (history), picked in lessons.ts
-    supabase/           browser and server clients, demo accounts
+    board/              grid layout, hand-drawn sketch paths, icons, camera and spring motion
+    export/             record-video: frames from boardStateAt(t) → canvas → MediaRecorder
     timeline/           alignment → clock, timeline compiler, boardStateAt
-    server/             Claude, ElevenLabs, BBANANA and Runway clients, signed lesson tokens, rate limiting, env
-supabase/migrations/    tenants, memberships, lessons, row-level security, private narration bucket
-scripts/                seed-demo.mjs (demo schools), check-tenants.mjs (isolation check against the live database)
-design/                 product brief and design spec
-research/               learning-science report and per-age notes
+    storage/            lesson history: Supabase per school, or IndexedDB without Supabase
+    server/             Claude, ElevenLabs, BBANANA and Runway clients, auth and budgets, signed tokens, rate limits
+supabase/migrations/    tenants, memberships, lessons, row-level security, quotas, private narration bucket
+scripts/                seed-demo.mjs (demo schools), check-tenants.mjs (isolation check)
+design/  research/      product brief, design spec, learning-science report
 ```
 
 ## Run it locally
@@ -111,7 +167,7 @@ Requirements: Node.js 20 or newer, an Anthropic API key, and an ElevenLabs API k
 git clone https://github.com/danish-ship-it/ai-whiteboard-tutor.git
 cd ai-whiteboard-tutor
 npm install
-cp .env.example .env.local   # then fill in the values
+cp .env.example .env.local   # then fill in your own values
 npm run dev                  # http://localhost:3000
 ```
 
@@ -119,37 +175,35 @@ npm run dev                  # http://localhost:3000
 |---|---|---|
 | `ANTHROPIC_API_KEY` | yes | Lesson generation and follow-up answers |
 | `ELEVENLABS_API_KEY` | yes* | Narration |
-| `ELEVENLABS_VOICE_ID` | yes* | The voice to use (from ElevenLabs → Voices) |
-| `LESSON_SIGNING_SECRET` | yes | Signs lessons so the voice and Q&A endpoints only accept server-generated lessons (`openssl rand -hex 32`) |
+| `ELEVENLABS_VOICE_ID` | yes* | The voice to use |
+| `LESSON_SIGNING_SECRET` | yes | Signs lessons (`openssl rand -hex 32`) |
 | `ANTHROPIC_MODEL` | no | Overrides the model (default `claude-opus-5-5`) |
 | `ELEVENLABS_MODEL_ID` | no | Overrides the TTS model (default `eleven_multilingual_v2`) |
-| `LESSON_EFFORT` | no | Claude effort for lessons: `low` (default, fastest), `medium`, `high` |
-| `BBANANA_API_KEY` | no | Turns on step pictures and clips for new lessons (key from bbanana.ai). Takes priority over Runway |
-| `RUNWAYML_API_SECRET` | no | Turns on step pictures and clips for new lessons (key from dev.runwayml.com). Without it the panel only appears on demos |
-| `NEXT_PUBLIC_SUPABASE_URL` | no | Turns on sign-in and per-school lesson history (Project Settings → API) |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | no | The project's publishable key. Safe in the browser: row-level security decides what each user can see |
-| `DEMO_ACCOUNT_PASSWORD` | no | Password of the demo school accounts. Server only; the demo buttons sign in through `/api/auth/demo` |
-| `SUPABASE_SECRET_KEY` | seeding only | Used by `scripts/seed-demo.mjs` to create the demo schools. Never needed by the running app |
+| `LESSON_EFFORT` | no | Claude effort for lessons: `low` (default), `medium`, `high` |
+| `BBANANA_API_KEY` | no | Turns on step pictures and clips for new lessons. Takes priority over Runway |
+| `RUNWAYML_API_SECRET` | no | Alternative picture and clip provider |
+| `NEXT_PUBLIC_SUPABASE_URL` | no | Turns on sign-in and per-school lesson history |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | no | The project's publishable key; safe in the browser because row-level security decides access |
+| `DEMO_ACCOUNT_PASSWORD` | no | Password of the demo school accounts; server only |
+| `SUPABASE_SECRET_KEY` | seeding only | Used by `scripts/seed-demo.mjs`; never needed by the running app |
 
-\*Without ElevenLabs the app still works, with captions only.
-
-All keys are read on the server only, except the Supabase URL and publishable key, which are designed to be public. None are committed to the repository.
+\*Without ElevenLabs the app still works, with captions only. Without Supabase the app skips sign-in and saves lessons in the browser. `.env.example` lists every variable with placeholder values only.
 
 To set up the database: create a Supabase project, run `supabase link` and `supabase db push`, then `node --env-file=.env.local scripts/seed-demo.mjs` and `node --env-file=.env.local scripts/check-tenants.mjs`.
 
 ```bash
-npm test            # unit tests: validation, layout, timeline/sync, history store, tokens, request limits
+npm test            # unit tests: validation, layout, timeline sync, camera and spring, video frames, storage, tokens
 npm run typecheck
 npm run lint
 npm run build
 npm run e2e         # Playwright: demo playback, mocked generation failure and cancel, shared Q&A
 ```
 
-**Deploying to Vercel:** import the repository, add the variables above under Project → Settings → Environment Variables, and deploy. The API routes set their own `maxDuration`.
+**Deploying to Vercel:** import the repository, add the variables above under Project → Settings → Environment Variables, and deploy.
 
 ## Measured performance
 
-These numbers come from local and production runs in November 2026.
+From local and production runs in November 2026.
 
 | Step | Time |
 |---|---|
@@ -157,32 +211,21 @@ These numbers come from local and production runs in November 2026.
 | Narration (ElevenLabs, one call per lesson) | 10–13 s |
 | Follow-up answer | ~5 s |
 | Lesson length | ~1:50–2:25 |
-| Narration response size | ~2 MB (under Vercel's 4.5 MB limit) |
+| Video export of a 2:05 lesson | 2:06 (records in real time), ~31 MB MP4 at 1280×720 |
 
-## Security and limits
+## Known limitations and what I would do next
 
-- API keys live only in server environment variables.
-- With Supabase on, every paid endpoint (lesson, voice, questions, pictures) requires a signed-in **member of a school**, checked in the route handler (the proxy only redirects). A self-registered account with no school gets 403. In production, paid routes refuse to run if sign-in isn't configured. Rate limits then count per user instead of per IP.
-- Each school has a daily AI budget (40 lessons, 40 narrations, 200 questions, 120 pictures, 30 clips), counted in the database by a single atomic statement, so it holds across every server instance and under concurrent requests. Once spent, paid routes return 429 until the next day.
-- A saved lesson's school and author can't be changed (a database trigger), so a member of two schools can't move or re-attribute lessons.
-- Tenant isolation is enforced by Postgres row-level security, not by the app: lessons and narration files are only visible to members of their school, through a `security definer` helper with an empty `search_path`. `scripts/check-tenants.mjs` signs in as both demo schools and checks 12 cases (read, edit, delete, insert and audio access across schools, and signed-out access).
-- Request bodies are read as a stream and cut off at a byte limit, whatever `Content-Length` says. Tokens are checked for exact structure, a finite issue time and a constant-time signature match.
-- Security headers on every route: `nosniff`, strict referrer policy, no framing (`X-Frame-Options` and CSP `frame-ancestors`), camera/microphone/location disabled.
-- The learner's topic is passed to Claude inside a `<topic>` tag and the prompt treats it as subject matter only, never as instructions.
-- Lessons are signed with HMAC-SHA256 and expire after 12 hours, so `/api/narration` and `/api/ask` can't be used to synthesise or prompt with arbitrary text.
-- Sliding-window rate limits (per 10 minutes): 6 lessons, 10 narrations, 30 questions, 24 pictures, 6 clips. Input sizes are capped.
-- `/api/visual` only illustrates scenes of a lesson this server signed, with a prompt the server builds from that lesson, so it can't be used as a free image generator.
-
-## Known limitations
-
-- The 10-minute rate limiter is in memory per server instance; the daily school budget in the database is the real spending cap.
-- Signed lesson tokens and picture receipts aren't bound to a user or school, so a copied one can be replayed by another signed-in member until it expires (12 hours for lessons). The daily budget bounds what that can cost.
-- The demo schools are public on purpose, so anyone can spend up to their daily budget.
-- Board labels are capped at three short words to stay legible on phones. Very dense topics are simplified rather than crammed in.
-- Follow-up answers point at existing board elements. They don't draw new diagrams.
-- Generation takes 30–40 s end to end. The progress screen shows each stage and the lesson outline; demo and saved lessons skip the wait entirely. Streaming the first scene before the rest is ready would cut it further.
-- Without Supabase, saved lessons live in one browser and can be evicted by it. Follow-up questions on a saved lesson work for 12 hours (the token lifetime); after that it still replays.
-- Sign-in is demo accounts and email/password only: there is no sign-up, invitation or school-switching screen. A user who belongs to several schools saves to the first one.
-- Pictures cost about 1 BBANANA credit (Runway: about $0.05) and clips about 5 credits (Runway: about $0.25), so each new lesson spends about 18 credits on its three pictures and clips. BBANANA's links are permanent and saved with the lesson; Runway's expire after 24–48 hours. The demo assets are stored in the repository.
+- **Video export runs in real time** (a two-minute lesson takes two minutes) because it uses MediaRecorder. WebCodecs with an MP4 muxer would make it several times faster. Step pictures are included; their 5-second clips are not, and a picture from a host without CORS is left out (that step is laid out without the corner).
+- **Generation takes 30–40 s.** The progress screen shows each stage and the outline; streaming the first scene before the rest is ready would cut the wait.
+- Follow-up answers point at existing drawings; they don't draw new diagrams yet.
+- Board labels are capped at three short words to stay legible on phones; dense topics are simplified.
+- Signed lesson tokens aren't bound to a school, so a copied token can be replayed by another signed-in member for 12 hours; the daily budget bounds the cost. The demo schools are public on purpose and can spend up to their daily budget.
+- The 10-minute rate limiter is in memory per server instance; the database budget is the real cap.
+- Sign-in is demo accounts and email/password only: no sign-up, invitations or school switching.
+- Without Supabase, saved lessons live in one browser and can be evicted.
+- The picture prompt is built in code from the scene rather than written by Claude, because one more field made the structured-output grammar too large for the API.
 - BBANANA has no public REST reference, so the server calls its MCP endpoint (JSON-RPC over HTTP) with the API key as a Bearer token.
-- The picture prompt is built from the scene's title, drawn objects and opening sentences rather than written by Claude: one more field in the lesson schema made the structured-output grammar too large for the API.
+
+## Credits
+
+The sketchbook look (line boil on a few takes, a second pencil pass, page texture, spring motion) is adapted from the ideas in [cth9191/animate](https://github.com/cth9191/animate) (MIT); the code here is written for this SVG board. README illustrations were generated with OpenAI Codex (GPT-6 Astra). Icons are based on Lucide (ISC).
