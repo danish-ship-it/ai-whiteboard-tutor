@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* Design tokens: design/DESIGN_SPEC.md §2. Light is the default theme. */
+:root {
+  --app-bg: #f2f0e8;
+  --surface: #ffffff;
+  --surface-raised: #f8f6ef;
+  --text: #232824;
+  --text-muted: #5b625c;
+  --divider: #d4d8cf;
+  --border-control: #7b8379;
+  --action: #255a46;
+  --on-action: #ffffff;
+  --action-hover: #194735;
+  --action-pressed: #123828;
+  --selected-bg: #e2ede3;
+  --focus: #255a46;
+  --disabled-bg: #e5e7df;
+  --disabled-text: #5b625c;
+  --danger: #9e352b;
+  --danger-bg: #fbede9;
+  --warning: #765609;
+  --warning-bg: #fff3cc;
+  --spoken-bg: #dce9dc;
+  --spoken-text: #1f4937;
+  --shadow-panel: 0 2px 0 rgba(35, 40, 36, 0.08);
+  --shadow-popover: 0 8px 24px rgba(35, 40, 36, 0.14);
+  --shadow-sheet: 0 -8px 32px rgba(35, 40, 36, 0.16);
+
+  /* Whiteboard: identical in both themes. Lesson tones map onto the six inks. */
+  --board: #fffcf5;
+  --board-border: #a9aea3;
+  --ink-ink: #262a28; /* graphite */
+  --ink-blue: #2356a8;
+  --ink-green: #21654b;
+  --ink-red: #a13d32; /* brick */
+  --ink-orange: #765609; /* ochre */
+  --ink-purple: #17666e; /* teal */
+  --tint-ink: #eeebe5;
+  --tint-blue: #edeff0;
+  --tint-green: #edf0e7;
+  --tint-red: #f7ede5;
+  --tint-orange: #f4efe2;
+  --tint-purple: #ecf0ea;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --app-bg: #171c19;
+  --surface: #202722;
+  --surface-raised: #2b342d;
+  --text: #f3f4eb;
+  --text-muted: #b7c1b7;
+  --divider: #3b473d;
+  --border-control: #7f9082;
+  --action: #bce0b7;
+  --on-action: #172318;
+  --action-hover: #cdebc9;
+  --action-pressed: #a3cb9e;
+  --selected-bg: #304c38;
+  --focus: #bce0b7;
+  --disabled-bg: #303a32;
+  --disabled-text: #aeb8ae;
+  --danger: #ffb5a7;
+  --danger-bg: #442922;
+  --warning: #f1cf7e;
+  --warning-bg: #3f351f;
+  --spoken-bg: #415b43;
+  --spoken-text: #ffffff;
+  --shadow-panel: 0 2px 0 rgba(0, 0, 0, 0.32);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36);
+  --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-app: var(--app-bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-raised);
+  --color-fg: var(--text);
+  --color-muted: var(--text-muted);
+  --color-divider: var(--divider);
+  --color-control: var(--border-control);
+  --color-action: var(--action);
+  --color-on-action: var(--on-action);
+  --color-action-hover: var(--action-hover);
+  --color-action-pressed: var(--action-pressed);
+  --color-selected: var(--selected-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-spoken: var(--spoken-bg);
+  --color-spoken-fg: var(--spoken-text);
+  --color-board: var(--board);
+  --color-board-border: var(--board-border);
+  --font-serif: var(--font-newsreader), Georgia, serif;
+  --font-sans: var(--font-instrument), Arial, sans-serif;
+  --font-mono: var(--font-plex-mono), monospace;
+  --shadow-panel: var(--shadow-panel);
+  --shadow-popover: var(--shadow-popover);
+  --shadow-sheet: var(--shadow-sheet);
+  --ease-ui: cubic-bezier(0.2, 0, 0, 1);
+}
+
+html,
+body {
+  background: var(--app-bg);
+  color: var(--text);
+  font-family: var(--font-instrument), Arial, sans-serif;
+  transition:
+    background-color 180ms ease-out,
+    color 180ms ease-out;
+}
+
+/* Focus: 2px ring separated by a 2px surface-coloured gap. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.kicker {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+@keyframes marker-sweep {
+  0% {
+    transform: translateX(-80px);
+  }
+  100% {
+    transform: translateX(160px);
+  }
+}
+.marker-sweep {
+  animation: marker-sweep 900ms ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes board-label-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

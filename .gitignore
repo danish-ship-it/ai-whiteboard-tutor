@@ -1,0 +1,9 @@
+.env*
+!.env.example
+node_modules
+.next
+.vercel
+.duo/*.json
+*.tsbuildinfo
+.DS_Store
+.claude/
