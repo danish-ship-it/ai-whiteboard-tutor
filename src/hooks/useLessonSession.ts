@@ -1,5 +1,6 @@
 "use client";
 
+import type { PresetVisuals } from "./useSceneVisuals";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { layoutLesson, type SceneLayout } from "@/lib/board/layout";
 import { DEFAULT_AUDIENCE, type Audience } from "@/lib/lesson/audience";
@@ -23,6 +24,10 @@ export interface LoadedLesson {
   voiceError: string | null;
   /** A saved lesson older than its token: it replays, but follow-up questions need a fresh lesson. */
   questionsExpired?: boolean;
+  /** Ready-made scene illustrations (demo lessons). */
+  visuals?: PresetVisuals;
+  /** Make scene illustrations as soon as the lesson opens (fresh lessons only). */
+  autoVisuals?: boolean;
 }
 
 export type SessionState =
@@ -152,7 +157,7 @@ export function useLessonSession() {
       releaseAudio();
       audioUrl.current = url;
       const timeline = compileTimeline(lesson, clock);
-      setState({ phase: "lesson", data: { topic, lesson, token, scenes, timeline, audioUrl: url, voiceError } });
+      setState({ phase: "lesson", data: { topic, lesson, token, scenes, timeline, audioUrl: url, voiceError, autoVisuals: true } });
       // Saved only with its voice, so a replay never needs the AI again. Failure to save is silent.
       if (audio && narration) {
         const now = Date.now();
@@ -190,7 +195,7 @@ export function useLessonSession() {
     controller.current = abort;
     const current = () => id === generation.current;
     try {
-      const demo = await postJson<{ topic: string; lesson: Lesson; token: string; audioUrl: string } & Omit<NarrationResponse, "audioBase64" | "mimeType">>(
+      const demo = await postJson<{ topic: string; lesson: Lesson; token: string; audioUrl: string; visuals?: PresetVisuals } & Omit<NarrationResponse, "audioBase64" | "mimeType">>(
         "/api/demo",
         { id: slug },
         abort.signal,
@@ -206,7 +211,7 @@ export function useLessonSession() {
       audioUrl.current = url;
       setState({
         phase: "lesson",
-        data: { topic: demo.topic, lesson: demo.lesson, token: demo.token, scenes: layoutLesson(demo.lesson), timeline: compileTimeline(demo.lesson, clock), audioUrl: url, voiceError: null },
+        data: { topic: demo.topic, lesson: demo.lesson, token: demo.token, scenes: layoutLesson(demo.lesson), timeline: compileTimeline(demo.lesson, clock), audioUrl: url, voiceError: null, visuals: demo.visuals },
       });
     } catch (error) {
       if (!current() || (error as Error).name === "AbortError") return;

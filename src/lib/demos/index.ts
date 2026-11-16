@@ -19,3 +19,9 @@ export interface DemoRecording {
 }
 
 export const isDemoSlug = (value: unknown): value is DemoSlug => DEMOS.some((d) => d.slug === value);
+
+/** Runway illustrations for each demo scene, in public/demos/visuals/<slug>-<sceneId>.{jpg,mp4}. */
+export const demoVisuals = (slug: DemoSlug, lesson: Lesson) =>
+  Object.fromEntries(
+    lesson.scenes.map((s) => [s.id, { image: `/demos/visuals/${slug}-${s.id}.jpg`, video: `/demos/visuals/${slug}-${s.id}.mp4` }]),
+  );

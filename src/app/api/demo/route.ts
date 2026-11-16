@@ -1,5 +1,5 @@
 import type { DemoRecording, DemoSlug } from "@/lib/demos";
-import { isDemoSlug } from "@/lib/demos";
+import { demoVisuals, isDemoSlug } from "@/lib/demos";
 import { validateLesson } from "@/lib/lesson/validate";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
 import { issueLessonToken } from "@/lib/server/lesson-token";
@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       audioUrl: `/demos/${body.id}.mp3`,
       alignment: recording.alignment,
       normalizedAlignment: recording.normalizedAlignment,
+      visuals: demoVisuals(body.id, lesson),
     });
   } catch (error) {
     return errorResponse(error);

@@ -13,6 +13,8 @@ import { Questions } from "./Questions";
 import { captionsSnapshot, setCaptions, subscribeCaptions } from "@/lib/prefs";
 import { Recall } from "./Recall";
 import { Transport } from "./Transport";
+import { SceneVisualCard } from "./SceneVisualCard";
+import { useSceneVisuals } from "@/hooks/useSceneVisuals";
 
 interface Props {
   data: LoadedLesson;
@@ -188,6 +190,9 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
     },
     [showOnBoard, status],
   );
+  const sceneIds = useMemo(() => lesson.scenes.map((s) => s.id), [lesson.scenes]);
+  const art = useSceneVisuals({ token, sceneIds, preset: data.visuals, auto: !!data.autoVisuals });
+  const lessonScene = lesson.scenes[state.sceneIndex];
   const qa = useLessonQuestions({ token, onAsk: playback.pause, onAnswer });
   const questions = (composerRef?: React.RefObject<HTMLTextAreaElement | null>) => (
     <Questions
@@ -325,7 +330,18 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
           </ol>
         </nav>
 
-        <section aria-labelledby="questions-heading" className="glass-strong hidden min-h-[480px] flex-1 flex-col rounded-2xl p-4 xl:flex">
+        {art.available && lessonScene && (
+          <SceneVisualCard
+            title={lessonScene.title}
+            description={`AI illustration: ${lessonScene.title}`}
+            visual={art.visuals[lessonScene.id]}
+            reducedMotion={reducedMotion}
+            onMakeImage={() => art.makeImage(lessonScene.id)}
+            onMakeVideo={() => art.makeVideo(lessonScene.id)}
+          />
+        )}
+
+        <section aria-labelledby="questions-heading" className="glass-strong hidden min-h-[360px] flex-1 flex-col rounded-2xl p-4 xl:flex">
           <h2 id="questions-heading" className="text-xl leading-7 font-semibold">
             Questions
           </h2>
