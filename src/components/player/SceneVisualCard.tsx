@@ -9,13 +9,15 @@ interface Props {
   /** What the picture shows; used as its text alternative. */
   description: string;
   visual: SceneVisual | undefined;
+  /** Service that makes new pictures, named in the credit line. */
+  provider?: string;
   reducedMotion: boolean;
   onMakeImage: () => void;
   onMakeVideo: () => void;
 }
 
 /** "See it for real": an AI illustration of the current scene beside the hand-drawn board. */
-export function SceneVisualCard({ title, description, visual, reducedMotion, onMakeImage, onMakeVideo }: Props) {
+export function SceneVisualCard({ title, description, visual, provider, reducedMotion, onMakeImage, onMakeVideo }: Props) {
   const working = visual?.working;
   return (
     <section aria-labelledby="visual-heading" className="glass rounded-2xl p-4">
@@ -42,7 +44,7 @@ export function SceneVisualCard({ title, description, visual, reducedMotion, onM
             className="h-full w-full object-cover"
           />
         ) : visual?.image ? (
-          // Runway and demo assets are plain URLs; next/image adds nothing for one 16:9 still.
+          // Generated and demo assets are plain URLs; next/image adds nothing for one 16:9 still.
           // eslint-disable-next-line @next/next/no-img-element
           <img src={visual.image} alt={description} className="h-full w-full object-cover" />
         ) : working === "image" ? (
@@ -66,7 +68,7 @@ export function SceneVisualCard({ title, description, visual, reducedMotion, onM
 
       {visual?.image && !visual.video && !working && (
         <div className="mt-3 flex items-center justify-between gap-2">
-          <p className="text-xs text-muted">{visual.error ?? "Made with Runway"}</p>
+          <p className="text-xs text-muted">{visual.error ?? (provider ? `Made with ${provider}` : "AI illustration")}</p>
           <Button variant="secondary" onClick={onMakeVideo}>
             <PlayIcon size={14} /> Bring it to life
           </Button>

@@ -335,6 +335,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
             title={lessonScene.title}
             description={`AI illustration: ${lessonScene.title}`}
             visual={art.visuals[lessonScene.id]}
+            provider={art.provider}
             reducedMotion={reducedMotion}
             onMakeImage={() => art.makeImage(lessonScene.id)}
             onMakeVideo={() => art.makeVideo(lessonScene.id)}

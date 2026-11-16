@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export interface SceneVisual {
   image?: string;
   video?: string;
-  /** Runway task that made the image; a clip is animated from it. */
+  /** Task that made the image; a clip is animated from it. */
   imageTask?: string;
   working?: "image" | "video";
   error?: string;
@@ -49,19 +49,20 @@ async function finishTask(taskId: string, signal: AbortSignal): Promise<string> 
     if (response.status === 429) continue;
     if (!response.ok) throw new Error(data.error ?? "The picture couldn't be made.");
     if (data.status === "done" && data.url) return data.url;
-    if (data.status === "failed") throw new Error("Runway couldn't make this one.");
+    if (data.status === "failed") throw new Error("The picture service couldn't make this one.");
   }
   throw new Error("This is taking too long. Try again later.");
 }
 
 /**
- * AI illustrations (Runway) for each scene: a picture first, then an optional
+ * AI illustrations (BBANANA or Runway) for each scene: a picture first, then an optional
  * five-second clip animated from it. Requests are cancelled when the lesson changes.
  */
 export function useSceneVisuals({ token, sceneIds, preset, auto }: Options) {
   const [visuals, setVisuals] = useState<Record<string, SceneVisual>>(() => ({ ...preset }));
   // Hidden until the server says illustrations are switched on; demos with ready-made visuals don't need it.
   const [available, setAvailable] = useState(false);
+  const [provider, setProvider] = useState<string>();
   const abort = useRef<AbortController>(new AbortController());
   const latest = useRef(visuals);
   useEffect(() => {
@@ -101,7 +102,10 @@ export function useSceneVisuals({ token, sceneIds, preset, auto }: Options) {
     abort.current = controller;
     fetch("/api/visual", { signal: controller.signal })
       .then((r) => r.json())
-      .then((d: { available?: boolean }) => setAvailable(!!d.available))
+      .then((d: { available?: boolean; provider?: string }) => {
+        setAvailable(!!d.available);
+        setProvider(d.provider);
+      })
       .catch(() => {});
     if (auto) {
       sceneKey.split(",").forEach((id, i) => {
@@ -115,6 +119,8 @@ export function useSceneVisuals({ token, sceneIds, preset, auto }: Options) {
   return {
     visuals,
     available: available || !!preset,
+    /** Who makes new pictures on this server, for the credit line. */
+    provider,
     makeImage: (sceneId: string) => void run(sceneId, "image"),
     makeVideo: (sceneId: string) => void run(sceneId, "video"),
   };
