@@ -1,5 +1,6 @@
 import { GRID_COLS, GRID_ROWS, parsePoints, type Lesson, type SketchAction, type Tone } from "../lesson/schema";
 import { ICONS, type IconName } from "./icons";
+import { iconMotion, type Motion } from "./icon-motion";
 
 export const BOARD_W = 1600;
 export const BOARD_H = 900;
@@ -35,6 +36,8 @@ export interface ShapeGeometry extends Box {
   kind: "shape" | "write" | "picture";
   /** Pictures only: the drawing, and the band under it where the caption is written. */
   picture?: Picture;
+  /** Pictures only: how the drawing keeps moving once drawn (see motion.ts). */
+  motion?: Motion;
   textBox?: Box;
   shape: "box" | "circle" | "pill" | "note" | "none";
   lines: string[];
@@ -111,7 +114,8 @@ export function layoutLesson(lesson: Lesson, { photo = false }: { photo?: boolea
         const textBox: Box = { x: box.x - 20, y: box.y + box.h - band, w: box.w + 40, h: band };
         const { lines, fontSize } = action.label ? fitText(action.label, textBox.w, band, 44) : { lines: [], fontSize: 44 };
         const picture = action.kind === "icon" ? placeIcon(ICONS[action.icon as IconName] ?? ICONS["circle-dot"], art) : sketchPicture(action, art);
-        shapes[action.id] = { id: action.id, kind: "picture", shape: "none", ...box, lines, fontSize, tone: action.tone, picture, textBox };
+        const motion = action.kind === "icon" ? iconMotion(action.icon) : "trace";
+        shapes[action.id] = { id: action.id, kind: "picture", shape: "none", ...box, lines, fontSize, tone: action.tone, picture, textBox, motion };
       } else if (action.kind === "connect") {
         const a = shapes[action.from];
         const b = shapes[action.to];

@@ -7,7 +7,7 @@ import { usePlayback } from "@/hooks/usePlayback";
 import { formatTime } from "@/lib/format";
 import { boardStateAt } from "@/lib/timeline/timeline";
 import { Button, IconButton } from "../ui/Button";
-import { CheckIcon, ChevronUp, CloseIcon, ExpandIcon, PlayIcon, WarningIcon } from "../ui/icons";
+import { CheckIcon, ChevronUp, CloseIcon, PlayIcon, WarningIcon } from "../ui/icons";
 import { useLessonQuestions } from "@/hooks/useLessonQuestions";
 import { Questions } from "./Questions";
 import { captionsSnapshot, setCaptions, subscribeCaptions } from "@/lib/prefs";
@@ -15,6 +15,7 @@ import { Recall } from "./Recall";
 import { Transport } from "./Transport";
 import { BoardPhoto } from "./BoardPhoto";
 import { layoutLesson } from "@/lib/board/layout";
+import { CAMERA_TRANSITION, boardCamera, cameraCssTransform } from "@/lib/board/motion";
 import { useSceneVisuals, type PresetVisuals } from "@/hooks/useSceneVisuals";
 import { saveVisuals } from "@/lib/storage/lessons";
 
@@ -30,6 +31,13 @@ const isTyping = (el: EventTarget | null) =>
 
 function subscribeReducedMotion(callback: () => void) {
   const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+
+const COMPACT = "(max-width: 767px)";
+function subscribeCompact(callback: () => void) {
+  const mq = window.matchMedia(COMPACT);
   mq.addEventListener("change", callback);
   return () => mq.removeEventListener("change", callback);
 }
@@ -67,6 +75,12 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
   const reducedMotion = useSyncExternalStore(
     subscribeReducedMotion,
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => false,
+  );
+  // On phone-sized boards the camera would push drawings under the photo, so the board stays wide.
+  const compact = useSyncExternalStore(
+    subscribeCompact,
+    () => window.matchMedia(COMPACT).matches,
     () => false,
   );
   const boardRef = useRef<HTMLDivElement>(null);
@@ -171,16 +185,57 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
     }
   }, [sheetOpen]);
 
-  const expandBoard = async () => {
-    const el = boardRef.current;
-    if (!el) return;
+  /**
+   * Full screen shows the board, captions and controls together. Where the browser refuses the
+   * Fullscreen API (iPhone Safari, embedded web views), the player still fills the window.
+   */
+  const [fullscreen, setFullscreen] = useState(false);
+  const playerRef = useRef<HTMLElement>(null);
+  const toggleFullscreen = async () => {
+    if (fullscreen) {
+      setFullscreen(false);
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+      return;
+    }
+    setFullscreen(true);
     try {
-      await el.requestFullscreen?.();
+      await playerRef.current?.requestFullscreen?.();
       await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.("landscape");
     } catch {
-      // Fullscreen or orientation lock is unavailable (e.g. iOS Safari); the board stays inline.
+      // Not allowed here; the window-filling layout above still applies.
     }
   };
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!fullscreen || !player) return;
+    // Everything the player covers leaves the tab order, so keyboard focus can't wander behind it.
+    const covered: HTMLElement[] = [];
+    for (let node: HTMLElement | null = player; node && node !== document.body; node = node.parentElement) {
+      for (const sibling of Array.from(node.parentElement?.children ?? [])) {
+        if (sibling !== node && sibling instanceof HTMLElement && !sibling.inert) {
+          sibling.inert = true;
+          covered.push(sibling);
+        }
+      }
+    }
+    const opener = document.activeElement as HTMLElement | null;
+    return () => {
+      covered.forEach((el) => (el.inert = false));
+      opener?.focus?.();
+    };
+  }, [fullscreen]);
+  useEffect(() => {
+    if (!fullscreen) return;
+    // Leaving with Esc or the browser's own control ends full screen here too.
+    const onChange = () => !document.fullscreenElement && setFullscreen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !document.fullscreenElement && setFullscreen(false);
+    document.addEventListener("fullscreenchange", onChange);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [fullscreen]);
 
   const stepsLabel = `${timeline.scenes.length} steps`;
   // Beside the board (desktop) an answer points at it right away, unless the learner has resumed since asking;
@@ -200,6 +255,10 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
   // With pictures on, every step keeps the board's top-right corner free for its photo.
   const boardScenes = useMemo(() => (art.available ? layoutLesson(lesson, { photo: true }) : scenes), [art.available, lesson, scenes]);
   const photoBox = boardScenes[state.sceneIndex]?.photo;
+  const camera = useMemo(
+    () => boardCamera(boardScenes[state.sceneIndex], state, { emphasis, titleProgress, reducedMotion: reducedMotion || compact }),
+    [boardScenes, state, emphasis, titleProgress, reducedMotion, compact],
+  );
   const qa = useLessonQuestions({ token, onAsk: playback.pause, onAnswer });
   const questions = (composerRef?: React.RefObject<HTMLTextAreaElement | null>) => (
     <Questions
@@ -245,19 +304,46 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
         )}
 
         {/* On wide screens the 16:9 board is capped by the screen height, so title, board, captions and controls fit without scrolling. */}
-        <section className="glass-strong mt-4 overflow-hidden rounded-2xl xl:mx-auto xl:max-w-[calc((100vh-425px)*16/9)]" aria-label="Lesson player">
-          <div ref={boardRef} className="relative aspect-video w-full bg-board">
-            <Whiteboard scenes={boardScenes} state={state} titleProgress={titleProgress} emphasis={emphasis} reducedMotion={reducedMotion} description={`${lesson.title}. ${lesson.objective}`} />
+        <section
+          ref={playerRef}
+          className={
+            fullscreen
+              ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-app"
+              : "glass-strong mt-4 overflow-hidden rounded-2xl xl:mx-auto xl:max-w-[calc((100vh-425px)*16/9)]"
+          }
+          aria-label="Lesson player"
+        >
+          {/* In full screen the board takes whatever height captions and controls leave, at 16:9. */}
+          <div className={fullscreen ? "flex min-h-0 flex-1 items-center justify-center [container-type:size]" : "contents"}>
+          <div ref={boardRef} className={`relative aspect-video bg-board ${fullscreen ? "w-[min(100cqw,calc(100cqh*16/9))]" : "w-full"}`}>
+            <Whiteboard
+              scenes={boardScenes}
+              state={state}
+              titleProgress={titleProgress}
+              emphasis={emphasis}
+              reducedMotion={reducedMotion}
+              camera={camera}
+              playing={status === "playing"}
+              description={`${lesson.title}. ${lesson.objective}`}
+            />
             {photoBox && lessonScene && (
-              <BoardPhoto
-                key={lessonScene.id}
-                box={photoBox}
-                visual={art.visuals[lessonScene.id]}
-                description={`AI picture: ${lessonScene.title}`}
-                playing={status === "playing"}
-                reducedMotion={reducedMotion}
-                onRetry={() => art.makeImage(lessonScene.id)}
-              />
+              // The photo is pinned to the board, so it moves with the camera too.
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{ transform: cameraCssTransform(camera), transformOrigin: "0 0", transition: reducedMotion ? undefined : CAMERA_TRANSITION }}
+              >
+                <div className="pointer-events-auto">
+                  <BoardPhoto
+                    key={lessonScene.id}
+                    box={photoBox}
+                    visual={art.visuals[lessonScene.id]}
+                    description={`AI picture: ${lessonScene.title}`}
+                    playing={status === "playing"}
+                    reducedMotion={reducedMotion}
+                    onRetry={() => art.makeImage(lessonScene.id)}
+                  />
+                </div>
+              </div>
             )}
             {(ready || status === "blocked") && !voiceProblem && (
               <div className="absolute inset-0 flex items-center justify-center">
@@ -267,9 +353,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
               </div>
             )}
             {status === "loading" && <p className="absolute inset-x-0 bottom-3 text-center text-sm text-[var(--board-ink)]">Loading the voice…</p>}
-            <IconButton label="Expand board" variant="board" onClick={expandBoard} className="absolute top-2 right-2 md:hidden">
-              <ExpandIcon />
-            </IconButton>
+          </div>
           </div>
 
           {/* Without a voice the captions are the lesson, so they can't be hidden then. */}
@@ -285,6 +369,8 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
             onRestart={restart}
             captions={captions || !data.audioUrl}
             onToggleCaptions={() => setCaptions(!captions)}
+            fullscreen={fullscreen}
+            onToggleFullscreen={toggleFullscreen}
           />
         </section>
 

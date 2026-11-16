@@ -114,6 +114,11 @@ export const ExpandIcon = (p: P) => (
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
   </Icon>
 );
+export const ShrinkIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+  </Icon>
+);
 
 /** The Chalk brand mark: a drawn right angle. */
 export const BrandMark = ({ size = 24 }: { size?: number }) => (

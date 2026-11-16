@@ -5,7 +5,7 @@ import type { Playback } from "@/hooks/usePlayback";
 import { formatTime, spokenTime } from "@/lib/format";
 import type { TimedScene } from "@/lib/timeline/timeline";
 import { IconButton } from "../ui/Button";
-import { CaptionsIcon, CheckIcon, ChevronDown, NextIcon, PauseIcon, PlayIcon, PrevIcon, ReplayIcon, RestartIcon } from "../ui/icons";
+import { CaptionsIcon, CheckIcon, ExpandIcon, ShrinkIcon, ChevronDown, NextIcon, PauseIcon, PlayIcon, PrevIcon, ReplayIcon, RestartIcon } from "../ui/icons";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5];
 
@@ -19,9 +19,11 @@ interface Props {
   onRestart: () => void;
   captions: boolean;
   onToggleCaptions: () => void;
+  fullscreen: boolean;
+  onToggleFullscreen: () => void;
 }
 
-export function Transport({ playback, scenes, currentScene, canStepBack, canStepForward, onStep, onRestart, captions, onToggleCaptions }: Props) {
+export function Transport({ playback, scenes, currentScene, canStepBack, canStepForward, onStep, onRestart, captions, onToggleCaptions, fullscreen, onToggleFullscreen }: Props) {
   const { status, time, duration } = playback;
   const playing = status === "playing";
   const ended = status === "ended";
@@ -49,7 +51,8 @@ export function Transport({ playback, scenes, currentScene, canStepBack, canStep
         <IconButton label="Forward one sentence" onClick={() => onStep(1)} disabled={disabled || !canStepForward}>
           <NextIcon />
         </IconButton>
-        <p className="ml-1 font-mono text-xs whitespace-nowrap text-muted md:ml-4 md:text-[13px]">
+        {/* Narrow phones drop the time readout (the timeline shows progress) so the full-screen button fits. */}
+        <p className="ml-1 font-mono text-xs whitespace-nowrap text-muted max-[479px]:hidden md:ml-4 md:text-[13px]">
           <span className="hidden md:inline">
             {formatTime(time)} / {formatTime(duration)}
           </span>
@@ -63,6 +66,9 @@ export function Transport({ playback, scenes, currentScene, canStepBack, canStep
             <CaptionsIcon />
           </IconButton>
           <SpeedMenu rate={playback.rate} onChange={playback.setRate} />
+          <IconButton label={fullscreen ? "Exit full screen" : "Full screen"} aria-pressed={fullscreen} onClick={onToggleFullscreen}>
+            {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
+          </IconButton>
         </div>
       </div>
     </div>

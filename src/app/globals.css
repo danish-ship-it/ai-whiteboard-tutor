@@ -269,3 +269,122 @@ form:focus-within textarea:focus-visible {
     transform: none;
   }
 }
+
+/* Board motion (see src/lib/board/motion.ts). Paused with the lesson; off under reduced motion. */
+.board-motion {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.board-spin {
+  animation: board-spin 24s linear infinite;
+}
+.board-sway {
+  transform-origin: 50% 100%;
+  animation: board-sway 3.2s ease-in-out infinite alternate;
+}
+.board-float {
+  animation: board-float 4s ease-in-out infinite alternate;
+}
+.board-pulse {
+  animation: board-pulse 1.6s ease-in-out infinite;
+}
+.board-drive {
+  animation: board-drive 3s ease-in-out infinite alternate;
+}
+.board-flow {
+  animation: board-flow 1.4s linear infinite;
+}
+.board-trace {
+  offset-rotate: 0deg;
+  animation: board-trace 3.2s ease-in-out infinite;
+}
+.board-sweep {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: board-sweep 450ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.board-underline {
+  stroke-dasharray: 1 1;
+  animation: board-underline 500ms 250ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.board-glow {
+  animation: board-glow 1.4s ease-out both;
+}
+@keyframes board-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes board-sway {
+  from {
+    transform: rotate(-4deg);
+  }
+  to {
+    transform: rotate(4deg);
+  }
+}
+@keyframes board-float {
+  from {
+    transform: translateY(-7px);
+  }
+  to {
+    transform: translateY(7px);
+  }
+}
+@keyframes board-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.07);
+  }
+}
+@keyframes board-drive {
+  from {
+    transform: translateX(-12px);
+  }
+  to {
+    transform: translateX(12px);
+  }
+}
+@keyframes board-flow {
+  to {
+    stroke-dashoffset: -0.071;
+  }
+}
+@keyframes board-trace {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+@keyframes board-sweep {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes board-underline {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes board-glow {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}

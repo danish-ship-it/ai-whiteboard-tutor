@@ -2,6 +2,7 @@
 
 import { memo, useMemo } from "react";
 import { BOARD_H, BOARD_W, center, type Box, type ConnectorGeometry, type SceneLayout, type ShapeGeometry } from "@/lib/board/layout";
+import { CAMERA_TRANSITION, WIDE, cameraSvgTransform, type Camera } from "@/lib/board/motion";
 import { arrowHead, sketchEllipse, sketchLine, sketchRect, sketchUnderline } from "@/lib/board/sketch";
 import type { BoardState } from "@/lib/timeline/timeline";
 
@@ -14,6 +15,10 @@ interface Props {
   emphasis?: string[];
   reducedMotion?: boolean;
   description?: string;
+  /** Where the camera looks (see motion.ts). */
+  camera?: Camera;
+  /** Moving parts run only while the lesson plays. */
+  playing?: boolean;
 }
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -32,7 +37,7 @@ const TITLE = { x: 64, y: 104, size: 76 };
  * Every element is drawn in two phases, the way a teacher works at a board:
  * the marker first draws the outline or picture, then writes the label.
  */
-export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgress, emphasis = [], reducedMotion, description }: Props) {
+export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgress, emphasis = [], reducedMotion, description, camera = WIDE, playing = false }: Props) {
   const scene = scenes[state.sceneIndex];
   const paths = useMemo(() => buildPaths(scene), [scene]);
   if (!scene) return null;
@@ -41,13 +46,24 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
   const emphasized = new Set(emphasis.filter((id) => scene.shapes[id]));
   const quiet = state.ended && emphasized.size === 0;
   const title = reveal(titleProgress);
+  // Finished drawings keep moving while the lesson plays; paused, they hold still where they are.
+  const motion = reducedMotion ? undefined : ({ animationPlayState: playing ? "running" : "paused" } as const);
 
   return (
     <svg viewBox={`0 0 ${BOARD_W} ${BOARD_H}`} className="block h-full w-full select-none" role="img" aria-labelledby="board-title board-desc">
       <title id="board-title">{`Whiteboard: ${scene.title}`}</title>
       <desc id="board-desc">{describeBoard(scene, state, description)}</desc>
 
-      <g aria-hidden="true" fontFamily="var(--font-instrument), Arial, sans-serif">
+      <defs>
+        <filter id="board-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="7" />
+        </filter>
+      </defs>
+      <g
+        aria-hidden="true"
+        fontFamily="var(--font-instrument), Arial, sans-serif"
+        style={{ transform: cameraSvgTransform(camera), transformOrigin: "0 0", transition: reducedMotion ? undefined : CAMERA_TRANSITION }}
+      >
         <SceneTitle text={scene.title} progress={title} />
 
         {state.elements.map((el) => {
@@ -55,22 +71,24 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
           if (!shape) return null;
           // The "current" tint appears once the element is drawn, so it never frames an empty space.
           const current = !quiet && (emphasized.size ? emphasized.has(el.id) : el.active && el.progress >= 1);
-          return current ? <Emphasis key={`em-${el.id}`} shape={shape} /> : null;
+          return current ? <Emphasis key={`em-${el.id}`} shape={shape} sweep={!reducedMotion && playing} /> : null;
         })}
 
         {state.elements.map((el) => {
           const shape = scene.shapes[el.id];
           const connector = scene.connectors[el.id];
           const earlier = !quiet && (emphasized.size ? !emphasized.has(el.id) : el.dimmed);
-          if (shape) return <ShapeView key={el.id} shape={shape} path={paths.shapes[el.id]} progress={reveal(el.progress)} earlier={earlier} />;
-          if (connector) return <ConnectorView key={el.id} c={connector} path={paths.connectors[el.id]} progress={reveal(el.progress)} earlier={earlier} />;
+          if (shape)
+            return <ShapeView key={el.id} shape={shape} path={paths.shapes[el.id]} progress={reveal(el.progress)} earlier={earlier} motion={motion} tracing={!!motion && el.active} />;
+          if (connector)
+            return <ConnectorView key={el.id} c={connector} path={paths.connectors[el.id]} progress={reveal(el.progress)} earlier={earlier} motion={earlier ? undefined : motion} />;
           return null;
         })}
 
         {!quiet &&
           state.highlights.map((h) => {
             const target = scene.shapes[h.target];
-            return target ? <HighlightMark key={`hl-${h.target}`} shape={target} style={h.style} progress={reveal(h.progress)} /> : null;
+            return target ? <HighlightMark key={`hl-${h.target}`} shape={target} style={h.style} progress={reveal(h.progress)} glow={!reducedMotion && playing} /> : null;
           })}
 
         {!state.ended && <Nib at={nibPosition(scene, state, paths, title, reducedMotion)} animate={!reducedMotion} />}
@@ -305,15 +323,35 @@ function SceneTitle({ text, progress }: { text: string; progress: number }) {
   );
 }
 
-function ShapeView({ shape, path, progress, earlier }: { shape: ShapeGeometry; path?: string; progress: number; earlier: boolean }) {
+type MotionStyle = { animationPlayState: "running" | "paused" } | undefined;
+
+function ShapeView({
+  shape,
+  path,
+  progress,
+  earlier,
+  motion,
+  tracing,
+}: {
+  shape: ShapeGeometry;
+  path?: string;
+  progress: number;
+  earlier: boolean;
+  motion: MotionStyle;
+  /** A sketch being explained: a dot runs along it, like a pointer tracing the curve. */
+  tracing: boolean;
+}) {
   const color = ink(shape.tone);
   const { art, text } = phases(shape, !!path, progress);
   const opacity = earlier ? 0.85 : 1;
+  // Icons move once fully drawn; the class sits on a wrapper so it doesn't replace the drawing's own transform.
+  const moving = motion && art >= 1 && shape.motion && shape.motion !== "trace" ? shape.motion : undefined;
   return (
     <g>
       {path && shape.shape === "note" && art > 0.2 && <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} rx={6} fill={tint(shape.tone)} />}
       {path && <path d={path} {...strokeProps} strokeDashoffset={1 - art} stroke={color} strokeWidth={STROKE} opacity={opacity} />}
       {shape.picture && art > 0 && (
+        <g className={moving ? `board-motion board-${moving}` : undefined} style={moving ? motion : undefined}>
         <g transform={`translate(${shape.picture.tx} ${shape.picture.ty}) scale(${shape.picture.scale})`}>
           {/* Stroke width is divided by the scale instead of using non-scaling-stroke, which breaks the
               pathLength-based reveal on scaled multi-part paths (circles drew only halfway). */}
@@ -326,6 +364,15 @@ function ShapeView({ shape, path, progress, earlier }: { shape: ShapeGeometry; p
             strokeWidth={(shape.kind === "picture" ? 3 : STROKE) / shape.picture.scale}
             opacity={opacity}
           />
+          {tracing && art >= 1 && shape.motion === "trace" && (
+            <circle
+              r={9 / shape.picture.scale}
+              fill={color}
+              className="board-trace"
+              style={{ ...motion, offsetPath: `path("${shape.picture.d.split(/(?=M)/)[0]}")` }}
+            />
+          )}
+        </g>
         </g>
       )}
       {/* Labels stay fully opaque even when earlier geometry dims, to keep AA contrast. */}
@@ -334,7 +381,19 @@ function ShapeView({ shape, path, progress, earlier }: { shape: ShapeGeometry; p
   );
 }
 
-function ConnectorView({ c, path, progress, earlier }: { c: ConnectorGeometry; path?: { line: string; heads: string[] }; progress: number; earlier: boolean }) {
+function ConnectorView({
+  c,
+  path,
+  progress,
+  earlier,
+  motion,
+}: {
+  c: ConnectorGeometry;
+  path?: { line: string; heads: string[] };
+  progress: number;
+  earlier: boolean;
+  motion: MotionStyle;
+}) {
   if (!path) return null;
   const color = ink(c.tone);
   const line = clamp01(progress / 0.8);
@@ -346,6 +405,10 @@ function ConnectorView({ c, path, progress, earlier }: { c: ConnectorGeometry; p
         {path.heads.map((d, i) => (
           <path key={i} d={d} {...strokeProps} strokeDashoffset={1 - head} strokeWidth={STROKE} />
         ))}
+        {/* Once drawn, dots flow along the arrow in its direction, so the diagram reads as a process. */}
+        {motion && progress >= 1 && c.style !== "line" && (
+          <path d={path.line} {...strokeProps} strokeDasharray="0.001 0.07" strokeWidth={7} opacity={0.55} className="board-flow" style={motion} />
+        )}
       </g>
       {c.label && head > 0 && (
         <text x={c.labelAt.x} y={c.labelAt.y + 12} fill={color} stroke="var(--board)" strokeWidth={14} paintOrder="stroke" fontSize={46} fontWeight={600} textAnchor="middle" opacity={head}>
@@ -356,13 +419,28 @@ function ConnectorView({ c, path, progress, earlier }: { c: ConnectorGeometry; p
   );
 }
 
-/** Current element: a solid tint behind it plus a 3px underline (spec §5; no glow or pulse). */
-function Emphasis({ shape }: { shape: ShapeGeometry }) {
+/** Current element: a tint behind it, swept on left to right like a highlighter, plus a 3px underline. */
+function Emphasis({ shape, sweep }: { shape: ShapeGeometry; sweep: boolean }) {
   const pad = 16;
   return (
     <g>
-      <rect x={shape.x - pad} y={shape.y - pad} width={shape.w + pad * 2} height={shape.h + pad * 2} rx={14} fill={tint(shape.tone)} />
-      <path d={sketchUnderline(shape.x + shape.w * 0.15, shape.y + shape.h + pad - 4, shape.w * 0.7, `cur:${shape.id}`)} {...strokeProps} strokeDashoffset={0} stroke={ink(shape.tone)} strokeWidth={EMPHASIS_STROKE} />
+      <rect
+        x={shape.x - pad}
+        y={shape.y - pad}
+        width={shape.w + pad * 2}
+        height={shape.h + pad * 2}
+        rx={14}
+        fill={tint(shape.tone)}
+        className={sweep ? "board-sweep" : undefined}
+      />
+      <path
+        d={sketchUnderline(shape.x + shape.w * 0.15, shape.y + shape.h + pad - 4, shape.w * 0.7, `cur:${shape.id}`)}
+        {...strokeProps}
+        strokeDashoffset={0}
+        stroke={ink(shape.tone)}
+        strokeWidth={EMPHASIS_STROKE}
+        className={sweep ? "board-underline" : undefined}
+      />
     </g>
   );
 }
@@ -374,6 +452,15 @@ function highlightPath(shape: ShapeGeometry, style: "circle" | "underline") {
     : sketchUnderline(shape.x, shape.y + shape.h + 18, shape.w, `ul:${shape.id}`);
 }
 
-function HighlightMark({ shape, style, progress }: { shape: ShapeGeometry; style: "circle" | "underline"; progress: number }) {
-  return <path d={highlightPath(shape, style)} {...strokeProps} strokeDashoffset={1 - progress} stroke={ink(shape.tone === "ink" ? "red" : shape.tone)} strokeWidth={EMPHASIS_STROKE} />;
+/** A marker circle or underline, laid over a soft highlighter band; when it closes, a brief glow. */
+function HighlightMark({ shape, style, progress, glow }: { shape: ShapeGeometry; style: "circle" | "underline"; progress: number; glow: boolean }) {
+  const d = highlightPath(shape, style);
+  const color = ink(shape.tone === "ink" ? "red" : shape.tone);
+  return (
+    <g>
+      {glow && progress >= 1 && <path d={d} {...strokeProps} strokeDashoffset={0} stroke={color} strokeWidth={14} filter="url(#board-glow)" className="board-glow" />}
+      <path d={d} {...strokeProps} strokeDashoffset={1 - progress} stroke={color} strokeWidth={style === "underline" ? 22 : 12} opacity={0.18} />
+      <path d={d} {...strokeProps} strokeDashoffset={1 - progress} stroke={color} strokeWidth={EMPHASIS_STROKE} />
+    </g>
+  );
 }
