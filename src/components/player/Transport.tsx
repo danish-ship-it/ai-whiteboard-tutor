@@ -5,9 +5,9 @@ import type { Playback } from "@/hooks/usePlayback";
 import { formatTime, spokenTime } from "@/lib/format";
 import type { TimedScene } from "@/lib/timeline/timeline";
 import { IconButton } from "../ui/Button";
-import { CheckIcon, ChevronDown, NextIcon, PauseIcon, PlayIcon, PrevIcon, ReplayIcon, RestartIcon } from "../ui/icons";
+import { CaptionsIcon, CheckIcon, ChevronDown, NextIcon, PauseIcon, PlayIcon, PrevIcon, ReplayIcon, RestartIcon } from "../ui/icons";
 
-const SPEEDS = [1, 1.25, 1.5];
+const SPEEDS = [0.75, 1, 1.25, 1.5];
 
 interface Props {
   playback: Playback;
@@ -17,16 +17,18 @@ interface Props {
   canStepForward: boolean;
   onStep: (direction: -1 | 1) => void;
   onRestart: () => void;
+  captions: boolean;
+  onToggleCaptions: () => void;
 }
 
-export function Transport({ playback, scenes, currentScene, canStepBack, canStepForward, onStep, onRestart }: Props) {
+export function Transport({ playback, scenes, currentScene, canStepBack, canStepForward, onStep, onRestart, captions, onToggleCaptions }: Props) {
   const { status, time, duration } = playback;
   const playing = status === "playing";
   const ended = status === "ended";
   const disabled = status === "loading" || status === "error";
 
   return (
-    <div className="border-t border-divider bg-surface px-3 pt-2 pb-3 md:px-4">
+    <div className="border-t border-divider/70 px-3 pt-2 pb-3 md:px-4">
       <Timeline playback={playback} scenes={scenes} />
       <div className="mt-1 flex items-center md:gap-2">
         <IconButton
@@ -37,7 +39,8 @@ export function Transport({ playback, scenes, currentScene, canStepBack, canStep
         >
           {ended ? <ReplayIcon /> : playing ? <PauseIcon /> : <PlayIcon />}
         </IconButton>
-        <IconButton label="Restart lesson" onClick={onRestart} disabled={disabled}>
+        {/* Phones: no room; Back, Replay at the end and the R key cover restarting. */}
+        <IconButton label="Restart lesson" onClick={onRestart} disabled={disabled} className="max-sm:hidden">
           <RestartIcon />
         </IconButton>
         <IconButton label="Back one sentence" onClick={() => onStep(-1)} disabled={disabled || !canStepBack}>
@@ -55,7 +58,10 @@ export function Transport({ playback, scenes, currentScene, canStepBack, canStep
           </span>
         </p>
         <p className="ml-4 hidden min-w-0 flex-1 truncate text-sm text-muted md:block">{scenes[currentScene]?.title}</p>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          <IconButton label={captions ? "Hide captions" : "Show captions"} aria-pressed={captions} onClick={onToggleCaptions} className={captions ? "text-action" : "text-muted"}>
+            <CaptionsIcon />
+          </IconButton>
           <SpeedMenu rate={playback.rate} onChange={playback.setRate} />
         </div>
       </div>

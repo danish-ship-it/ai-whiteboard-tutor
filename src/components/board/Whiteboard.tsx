@@ -53,7 +53,8 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
         {state.elements.map((el) => {
           const shape = scene.shapes[el.id];
           if (!shape) return null;
-          const current = !quiet && (emphasized.size ? emphasized.has(el.id) : el.active);
+          // The "current" tint appears once the element is drawn, so it never frames an empty space.
+          const current = !quiet && (emphasized.size ? emphasized.has(el.id) : el.active && el.progress >= 1);
           return current ? <Emphasis key={`em-${el.id}`} shape={shape} /> : null;
         })}
 
@@ -314,7 +315,17 @@ function ShapeView({ shape, path, progress, earlier }: { shape: ShapeGeometry; p
       {path && <path d={path} {...strokeProps} strokeDashoffset={1 - art} stroke={color} strokeWidth={STROKE} opacity={opacity} />}
       {shape.picture && art > 0 && (
         <g transform={`translate(${shape.picture.tx} ${shape.picture.ty}) scale(${shape.picture.scale})`}>
-          <path d={shape.picture.d} {...strokeProps} strokeDashoffset={1 - art} stroke={color} strokeWidth={shape.kind === "picture" ? 3 : STROKE} opacity={opacity} />
+          {/* Stroke width is divided by the scale instead of using non-scaling-stroke, which breaks the
+              pathLength-based reveal on scaled multi-part paths (circles drew only halfway). */}
+          <path
+            d={shape.picture.d}
+            {...strokeProps}
+            vectorEffect="none"
+            strokeDashoffset={1 - art}
+            stroke={color}
+            strokeWidth={(shape.kind === "picture" ? 3 : STROKE) / shape.picture.scale}
+            opacity={opacity}
+          />
         </g>
       )}
       {/* Labels stay fully opaque even when earlier geometry dims, to keep AA contrast. */}

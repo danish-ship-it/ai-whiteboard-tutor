@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { layoutLesson, type SceneLayout } from "@/lib/board/layout";
+import { DEFAULT_AUDIENCE, type Audience } from "@/lib/lesson/audience";
 import { buildNarration } from "@/lib/lesson/narration";
 import type { Lesson } from "@/lib/lesson/schema";
 import { buildCharClock, type CharAlignment } from "@/lib/timeline/align";
 import { compileTimeline, type Timeline } from "@/lib/timeline/timeline";
+import { getLesson, saveLesson } from "@/lib/storage/history";
 
 export type Stage = "planning" | "drawing" | "recording";
 
@@ -19,11 +21,13 @@ export interface LoadedLesson {
   audioUrl: string | null;
   /** Set when the voice failed; the lesson can still play with captions. */
   voiceError: string | null;
+  /** A saved lesson older than its token: it replays, but follow-up questions need a fresh lesson. */
+  questionsExpired?: boolean;
 }
 
 export type SessionState =
   | { phase: "home"; topic: string }
-  | { phase: "generating"; topic: string; stage: Stage; slow: boolean }
+  | { phase: "generating"; topic: string; stage: Stage; slow: boolean; outline?: string[] }
   | { phase: "failed"; topic: string; message: string }
   | { phase: "lesson"; data: LoadedLesson };
 
@@ -49,12 +53,23 @@ async function postJson<T>(url: string, body: unknown, signal: AbortSignal): Pro
   return data as T;
 }
 
-function base64ToObjectUrl(base64: string, mimeType: string): string {
+function base64ToBlob(base64: string, mimeType: string): Blob {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+  return new Blob([bytes], { type: mimeType });
 }
+
+/** When the server stops accepting this lesson for questions (tokens carry their issue time). */
+function tokenExpiry(token: string): number {
+  try {
+    const payload = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+    return (JSON.parse(atob(payload)) as { iat: number }).iat + TOKEN_LIFETIME_MS;
+  } catch {
+    return 0;
+  }
+}
+const TOKEN_LIFETIME_MS = 12 * 60 * 60 * 1000;
 
 /** Reads the decoded duration of the narration so the timeline matches the real media. */
 function probeDuration(url: string): Promise<number | undefined> {
@@ -93,7 +108,7 @@ export function useLessonSession() {
     releaseAudio();
   }, []);
 
-  const generate = useCallback(async (topic: string) => {
+  const generate = useCallback(async (topic: string, audience: Audience = DEFAULT_AUDIENCE) => {
     const id = ++generation.current;
     controller.current?.abort();
     const abort = new AbortController();
@@ -106,21 +121,24 @@ export function useLessonSession() {
     }, 30_000);
 
     try {
-      const { lesson, token } = await postJson<{ lesson: Lesson; token: string }>("/api/lesson", { topic }, abort.signal);
+      const { lesson, token } = await postJson<{ lesson: Lesson; token: string }>("/api/lesson", { topic, audience }, abort.signal);
       if (!current()) return;
 
       setState((s) => (s.phase === "generating" ? { ...s, stage: "drawing" } : s));
       const scenes = layoutLesson(lesson);
       const { text } = buildNarration(lesson);
-      setState((s) => (s.phase === "generating" ? { ...s, stage: "recording" } : s));
+      setState((s) => (s.phase === "generating" ? { ...s, stage: "recording", outline: lesson.scenes.map((scene) => scene.title) } : s));
 
       let url: string | null = null;
       let voiceError: string | null = null;
       let clock = buildCharClock(text, null, null);
+      let narration: NarrationResponse | null = null;
+      let audio: Blob | null = null;
       try {
-        const narration = await postJson<NarrationResponse>("/api/narration", { token }, abort.signal);
+        narration = await postJson<NarrationResponse>("/api/narration", { token }, abort.signal);
         if (!current()) return;
-        url = base64ToObjectUrl(narration.audioBase64, narration.mimeType);
+        audio = base64ToBlob(narration.audioBase64, narration.mimeType);
+        url = URL.createObjectURL(audio);
         clock = buildCharClock(text, narration.alignment, narration.normalizedAlignment, await probeDuration(url));
       } catch (error) {
         if ((error as Error).name === "AbortError") throw error;
@@ -133,10 +151,28 @@ export function useLessonSession() {
 
       releaseAudio();
       audioUrl.current = url;
-      setState({
-        phase: "lesson",
-        data: { topic, lesson, token, scenes, timeline: compileTimeline(lesson, clock), audioUrl: url, voiceError },
-      });
+      const timeline = compileTimeline(lesson, clock);
+      setState({ phase: "lesson", data: { topic, lesson, token, scenes, timeline, audioUrl: url, voiceError } });
+      // Saved only with its voice, so a replay never needs the AI again. Failure to save is silent.
+      if (audio && narration) {
+        const now = Date.now();
+        void saveLesson({
+          version: 1,
+          id: crypto.randomUUID(),
+          topic,
+          title: lesson.title,
+          lesson,
+          token,
+          tokenExpiresAt: tokenExpiry(token),
+          audio,
+          mimeType: narration.mimeType,
+          alignment: narration.alignment,
+          normalizedAlignment: narration.normalizedAlignment,
+          duration: timeline.duration,
+          createdAt: now,
+          lastOpenedAt: now,
+        });
+      }
     } catch (error) {
       if (!current()) return;
       if ((error as Error).name === "AbortError") return;
@@ -144,6 +180,69 @@ export function useLessonSession() {
     } finally {
       clearTimeout(slowTimer);
     }
+  }, []);
+
+  /** Opens a pre-recorded demo lesson: no AI calls, plays as soon as the audio file arrives. */
+  const openDemo = useCallback(async (slug: string) => {
+    const id = ++generation.current;
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    const current = () => id === generation.current;
+    try {
+      const demo = await postJson<{ topic: string; lesson: Lesson; token: string; audioUrl: string } & Omit<NarrationResponse, "audioBase64" | "mimeType">>(
+        "/api/demo",
+        { id: slug },
+        abort.signal,
+      );
+      const audio = await fetch(demo.audioUrl, { signal: abort.signal });
+      if (!audio.ok) throw new RequestError("The demo's audio couldn't load. Please try again.");
+      const url = URL.createObjectURL(await audio.blob());
+      if (!current()) return URL.revokeObjectURL(url);
+      const { text } = buildNarration(demo.lesson);
+      const clock = buildCharClock(text, demo.alignment, demo.normalizedAlignment, await probeDuration(url));
+      if (!current()) return URL.revokeObjectURL(url);
+      releaseAudio();
+      audioUrl.current = url;
+      setState({
+        phase: "lesson",
+        data: { topic: demo.topic, lesson: demo.lesson, token: demo.token, scenes: layoutLesson(demo.lesson), timeline: compileTimeline(demo.lesson, clock), audioUrl: url, voiceError: null },
+      });
+    } catch (error) {
+      if (!current() || (error as Error).name === "AbortError") return;
+      setState({ phase: "failed", topic: "", message: (error as Error).message });
+    }
+  }, []);
+
+  /** Replays a lesson saved on this device, with no network calls. */
+  const openSaved = useCallback(async (id: string) => {
+    const run = ++generation.current;
+    controller.current?.abort();
+    const saved = await getLesson(id);
+    if (run !== generation.current) return;
+    if (!saved?.audio) {
+      setState({ phase: "failed", topic: saved?.topic ?? "", message: "That saved lesson couldn't be opened. You can make it again." });
+      return;
+    }
+    const url = URL.createObjectURL(saved.audio);
+    const { text } = buildNarration(saved.lesson);
+    const clock = buildCharClock(text, saved.alignment, saved.normalizedAlignment, await probeDuration(url));
+    if (run !== generation.current) return URL.revokeObjectURL(url);
+    releaseAudio();
+    audioUrl.current = url;
+    setState({
+      phase: "lesson",
+      data: {
+        topic: saved.topic,
+        lesson: saved.lesson,
+        token: saved.token,
+        scenes: layoutLesson(saved.lesson),
+        timeline: compileTimeline(saved.lesson, clock),
+        audioUrl: url,
+        voiceError: null,
+        questionsExpired: saved.tokenExpiresAt < Date.now(),
+      },
+    });
   }, []);
 
   /** Stops generation and returns home with the topic preserved; late results are ignored. */
@@ -166,5 +265,5 @@ export function useLessonSession() {
     setState((s) => (s.phase === "lesson" ? { ...s, data: { ...s.data, voiceError: null, audioUrl: null } } : s));
   }, []);
 
-  return { state, generate, cancel, goHome, continueWithCaptions };
+  return { state, generate, openDemo, openSaved, cancel, goHome, continueWithCaptions };
 }

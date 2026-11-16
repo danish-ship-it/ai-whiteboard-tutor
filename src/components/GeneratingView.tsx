@@ -12,7 +12,17 @@ const STAGES: Array<{ id: Stage; title: string; detail: string }> = [
   { id: "recording", title: "Recording the voice", detail: "Matching the voice to the board." },
 ];
 
-export function GeneratingView({ topic, stage, slow, offline, onCancel }: { topic: string; stage: Stage; slow: boolean; offline: boolean; onCancel: () => void }) {
+interface Props {
+  topic: string;
+  stage: Stage;
+  slow: boolean;
+  offline: boolean;
+  /** The lesson's step titles, known once Claude has written it (shown while the voice records). */
+  outline?: string[];
+  onCancel: () => void;
+}
+
+export function GeneratingView({ topic, stage, slow, offline, outline, onCancel }: Props) {
   const current = STAGES.findIndex((s) => s.id === stage);
   return (
     <Shell kicker="Preparing your lesson" topic={topic}>
@@ -45,6 +55,19 @@ export function GeneratingView({ topic, stage, slow, offline, onCancel }: { topi
           );
         })}
       </ol>
+      {outline && outline.length > 0 && (
+        <div className="glass mt-6 rounded-2xl p-4">
+          <p className="kicker">Your lesson</p>
+          <ol className="mt-2 space-y-1">
+            {outline.map((title, i) => (
+              <li key={i} className="flex gap-3 text-base">
+                <span className="font-mono text-xs leading-6 text-muted">{String(i + 1).padStart(2, "0")}</span>
+                {title}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
       <p className="mt-6 text-sm text-muted" aria-live="polite">
         {slow ? "This is taking a little longer. You can keep waiting or cancel." : "Usually 20–40 seconds."}
       </p>

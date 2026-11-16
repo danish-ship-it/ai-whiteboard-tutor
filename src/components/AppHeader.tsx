@@ -51,7 +51,7 @@ export function AppHeader({ onHome }: { onHome: () => void }) {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-divider bg-surface">
+    <header className="glass-strong sticky top-0 z-20 border-0 border-b">
       <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between px-4 md:h-16 md:px-8">
         <button type="button" onClick={onHome} className="flex h-11 items-center gap-2 rounded-lg pr-2" aria-label="Chalk, start a new lesson">
           <BrandMark />
@@ -65,7 +65,7 @@ export function AppHeader({ onHome }: { onHome: () => void }) {
             <KeyboardIcon />
           </IconButton>
           {helpOpen && (
-            <div role="dialog" aria-label="Keyboard shortcuts" className="absolute top-12 right-0 z-40 w-[312px] rounded-lg border border-control bg-surface p-4 shadow-popover">
+            <div role="dialog" aria-label="Keyboard shortcuts" className="glass-strong absolute top-12 right-0 z-40 w-[312px] rounded-2xl p-4">
               <div className="flex items-start justify-between">
                 <h2 className="text-base leading-6 font-semibold">Keyboard shortcuts</h2>
                 <IconButton

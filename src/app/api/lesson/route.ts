@@ -1,3 +1,4 @@
+import { DEFAULT_AUDIENCE, isAudience } from "@/lib/lesson/audience";
 import { generateLesson } from "@/lib/server/claude";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
 import { issueLessonToken } from "@/lib/server/lesson-token";
@@ -19,7 +20,8 @@ export async function POST(request: Request) {
 
   try {
     const started = Date.now();
-    const { lesson, issues } = await generateLesson(topic, request.signal);
+    const audience = isAudience(body?.audience) ? body.audience : DEFAULT_AUDIENCE;
+    const { lesson, issues } = await generateLesson(topic, audience, request.signal);
     console.info(`lesson ready in ${Date.now() - started} ms (${issues.length} repairs)`, issues.slice(0, 10));
     return Response.json({ lesson, token: issueLessonToken(lesson) });
   } catch (error) {

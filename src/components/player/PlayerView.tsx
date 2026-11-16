@@ -8,7 +8,9 @@ import { formatTime } from "@/lib/format";
 import { boardStateAt } from "@/lib/timeline/timeline";
 import { Button, IconButton } from "../ui/Button";
 import { CheckIcon, ChevronUp, CloseIcon, ExpandIcon, PlayIcon, WarningIcon } from "../ui/icons";
+import { useLessonQuestions } from "@/hooks/useLessonQuestions";
 import { Questions } from "./Questions";
+import { captionsSnapshot, setCaptions, subscribeCaptions } from "@/lib/prefs";
 import { Recall } from "./Recall";
 import { Transport } from "./Transport";
 
@@ -54,6 +56,10 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
   const emphasis = answerMark && status !== "playing" && Math.abs(time - answerMark.at) < 0.01 ? answerMark.ids : undefined;
   const [sheetOpen, setSheetOpen] = useState(false);
   const [recallPicks, setRecallPicks] = useState<Record<number, number>>({});
+  // The quiz belongs to the end of the lesson; it stays open only while the learner reviews a scene from it.
+  const [reviewing, setReviewing] = useState(false);
+  if (reviewing && status === "playing") setReviewing(false);
+  const captions = useSyncExternalStore(subscribeCaptions, captionsSnapshot, () => true);
   const reducedMotion = useSyncExternalStore(
     subscribeReducedMotion,
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -173,8 +179,25 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
   };
 
   const stepsLabel = `${timeline.scenes.length} steps`;
+  // Beside the board (desktop) an answer points at it right away, unless the learner has resumed since asking;
+  // in the mobile sheet the learner reads first and uses "Show on the board".
+  const onAnswer = useCallback(
+    (answer: { highlight: string[]; sceneId: string }) => {
+      if (answer.highlight.length && answer.sceneId && status !== "playing" && window.matchMedia("(min-width: 1280px)").matches)
+        showOnBoard(answer.sceneId, answer.highlight);
+    },
+    [showOnBoard, status],
+  );
+  const qa = useLessonQuestions({ token, onAsk: playback.pause, onAnswer });
   const questions = (composerRef?: React.RefObject<HTMLTextAreaElement | null>) => (
-    <Questions token={token} suggestions={lesson.suggestedQuestions} offline={offline} onAsk={playback.pause} onShowOnBoard={showOnBoard} composerRef={composerRef} />
+    <Questions
+      qa={qa}
+      suggestions={lesson.suggestedQuestions}
+      offline={offline}
+      onShowOnBoard={showOnBoard}
+      lockedReason={data.questionsExpired ? "Questions need a fresh lesson: this saved one is more than 12 hours old." : undefined}
+      composerRef={composerRef}
+    />
   );
 
   return (
@@ -209,7 +232,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
           </div>
         )}
 
-        <section className="mt-4 overflow-hidden rounded-xl border border-divider shadow-panel" aria-label="Lesson player">
+        <section className="glass-strong mt-4 overflow-hidden rounded-2xl" aria-label="Lesson player">
           <div ref={boardRef} className="relative aspect-video w-full bg-board">
             <Whiteboard scenes={scenes} state={state} titleProgress={titleProgress} emphasis={emphasis} reducedMotion={reducedMotion} description={`${lesson.title}. ${lesson.objective}`} />
             {(ready || status === "blocked") && !voiceProblem && (
@@ -225,7 +248,8 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
             </IconButton>
           </div>
 
-          <Caption ready={ready} text={state.caption} wordIndex={status === "ready" && time === 0 ? -1 : state.spokenWordIndex} />
+          {/* Without a voice the captions are the lesson, so they can't be hidden then. */}
+          {(captions || !data.audioUrl) && <Caption ready={ready} text={state.caption} wordIndex={status === "ready" && time === 0 ? -1 : state.spokenWordIndex} />}
 
           <Transport
             playback={playback}
@@ -235,10 +259,12 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
             canStepForward={state.beatIndex < timeline.beats.length - 1}
             onStep={step}
             onRestart={restart}
+            captions={captions || !data.audioUrl}
+            onToggleCaptions={() => setCaptions(!captions)}
           />
         </section>
 
-        {ended || (Object.keys(recallPicks).length > 0 && status !== "playing") ? (
+        {ended || (reviewing && status !== "playing") ? (
           <Recall
             questions={lesson.recall}
             picked={recallPicks}
@@ -255,7 +281,10 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
               if (window.matchMedia("(min-width: 1280px)").matches) desktopComposer.current?.focus();
               else openSheet();
             }}
-            onShowScene={showScene}
+            onShowScene={(sceneId) => {
+              setReviewing(true);
+              showScene(sceneId);
+            }}
           />
         ) : (
           <p className="mt-5 px-4 text-sm text-muted">
@@ -265,7 +294,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
       </div>
 
       <aside className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-24 xl:h-[calc(100vh-128px)]">
-        <nav aria-label="Lesson outline" className="rounded-xl border border-divider bg-surface p-4 shadow-panel">
+        <nav aria-label="Lesson outline" className="glass rounded-2xl p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base leading-6 font-semibold">Lesson outline</h2>
             <span className="font-mono text-xs text-muted">
@@ -296,7 +325,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
           </ol>
         </nav>
 
-        <section aria-labelledby="questions-heading" className="hidden min-h-[480px] flex-1 flex-col rounded-xl border border-divider bg-surface p-4 shadow-panel xl:flex">
+        <section aria-labelledby="questions-heading" className="glass-strong hidden min-h-[480px] flex-1 flex-col rounded-2xl p-4 xl:flex">
           <h2 id="questions-heading" className="text-xl leading-7 font-semibold">
             Questions
           </h2>
@@ -306,7 +335,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
       </aside>
 
       {/* Mobile and tablet: question dock + bottom sheet */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-divider bg-surface px-4 py-2 xl:hidden" style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}>
+      <div className="glass-strong fixed inset-x-0 bottom-0 z-20 border-0 border-t px-4 py-2 xl:hidden" style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}>
         <button
           ref={dockButton}
           type="button"
@@ -324,7 +353,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
         aria-labelledby="sheet-heading"
         onClose={() => setSheetOpen(false)}
         onClick={(e) => e.target === e.currentTarget && closeSheet()}
-        className="fixed inset-x-0 top-auto bottom-0 m-0 h-[min(564px,85dvh)] max-h-none w-full max-w-none flex-col rounded-t-2xl bg-surface px-4 pt-2 pb-4 text-fg shadow-sheet open:flex backdrop:bg-[rgba(23,28,25,0.48)] xl:hidden"
+        className="fixed inset-x-0 top-auto bottom-0 m-0 h-[min(564px,85dvh)] max-h-none w-full max-w-none flex-col glass-strong rounded-t-3xl px-4 pt-2 pb-4 text-fg open:flex backdrop:bg-[rgba(23,28,25,0.48)] xl:hidden"
       >
         <span className="mx-auto h-1 w-10 shrink-0 rounded-full bg-divider" aria-hidden="true" />
         <div className="mt-2 flex items-center justify-between">
@@ -344,7 +373,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
 function Caption({ ready, text, wordIndex }: { ready: boolean; text: string; wordIndex: number }) {
   const words = text.split(/\s+/).filter(Boolean);
   return (
-    <div className="min-h-[104px] border-t border-divider bg-surface px-4 py-3 md:min-h-[100px]">
+    <div className="min-h-[104px] border-t border-divider/70 px-4 py-3 md:min-h-[100px]">
       <p className="kicker hidden md:block" aria-hidden="true">
         Tutor
       </p>

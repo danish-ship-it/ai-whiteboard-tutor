@@ -50,6 +50,12 @@ export const NextIcon = (p: P) => (
     <path d="M18 5v14M6 6l9 6-9 6V6Z" />
   </Icon>
 );
+export const CaptionsIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M7 15h4M15 15h2M7 11h2M13 11h4" />
+  </Icon>
+);
 export const ChevronDown = (p: P) => (
   <Icon {...p}>
     <path d="m6 9 6 6 6-6" />

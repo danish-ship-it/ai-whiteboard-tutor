@@ -25,7 +25,7 @@ export function Recall({ questions, picked, onPick, onReplay, onAsk, onShowScene
   const done = answered === questions.length;
 
   return (
-    <section aria-labelledby="recall-heading" className="mt-5 rounded-lg border border-divider bg-surface p-4 md:p-5">
+    <section aria-labelledby="recall-heading" className="glass-strong mt-5 rounded-2xl p-4 md:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="recall-heading" className="text-xl leading-7 font-semibold">
           {questions.length ? "Lesson complete. Quick check" : "Lesson complete."}

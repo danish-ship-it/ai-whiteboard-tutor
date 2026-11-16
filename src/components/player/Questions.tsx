@@ -1,41 +1,26 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
+import type { LessonQuestions } from "@/hooks/useLessonQuestions";
 import { Button, IconButton } from "../ui/Button";
 import { SendIcon } from "../ui/icons";
 
-export interface QAMessage {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  highlight?: string[];
-  sceneId?: string;
-  failed?: boolean;
-}
-
-interface AnswerResponse {
-  answer: string;
-  highlight: string[];
-  sceneId: string;
-}
-
 interface Props {
-  token: string;
+  /** The lesson's conversation, shared by every place the panel is shown. */
+  qa: LessonQuestions;
   suggestions: string[];
   offline: boolean;
-  /** Called when the learner sends a question (the player pauses). */
-  onAsk: () => void;
   /** Shows the board elements an answer refers to. */
   onShowOnBoard: (sceneId: string, highlight: string[]) => void;
+  /** Why questions can't be sent right now (e.g. a saved lesson too old for the server), if so. */
+  lockedReason?: string;
   composerRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-let nextId = 1;
-
-export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, composerRef }: Props) {
-  const [messages, setMessages] = useState<QAMessage[]>([]);
-  const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState(false);
+export function Questions({ qa, suggestions, offline: isOffline, onShowOnBoard, lockedReason, composerRef }: Props) {
+  const offline = isOffline || !!lockedReason;
+  const { messages, draft, setDraft, pending, retry } = qa;
+  const send = () => qa.send(offline);
   const localRef = useRef<HTMLTextAreaElement>(null);
   const input = composerRef ?? localRef;
   const scroller = useRef<HTMLDivElement>(null);
@@ -50,52 +35,6 @@ export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, c
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" });
   }, [messages, pending]);
-
-  const ask = async (question: string, history: QAMessage[]) => {
-    setPending(true);
-    onAsk();
-    try {
-      const response = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token,
-          question,
-          history: history.filter((m) => !m.failed).map(({ role, content }) => ({ role, content })),
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error((data as { error?: string }).error ?? "I couldn't answer that.");
-      const answer = data as AnswerResponse;
-      setMessages((m) => [...m, { id: nextId++, role: "assistant", content: answer.answer, highlight: answer.highlight, sceneId: answer.sceneId }]);
-      // Beside the board (desktop) an answer points at it right away; in the mobile sheet the learner
-      // reads first and uses "Show on the board", so the answer isn't dismissed before it is read.
-      if (answer.highlight.length && answer.sceneId && window.matchMedia("(min-width: 1280px)").matches) onShowOnBoard(answer.sceneId, answer.highlight);
-    } catch (error) {
-      const message = navigator.onLine ? (error as Error).message : "Connection lost.";
-      setMessages((m) => [...m, { id: nextId++, role: "assistant", content: message, failed: true }]);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const send = () => {
-    const question = draft.trim();
-    if (!question || pending || offline) return;
-    const history = messages;
-    setMessages((m) => [...m, { id: nextId++, role: "user", content: question }]);
-    setDraft("");
-    void ask(question, history);
-  };
-
-  const retry = (failedId: number) => {
-    const index = messages.findIndex((m) => m.id === failedId);
-    const question = [...messages.slice(0, index)].reverse().find((m) => m.role === "user");
-    if (!question) return;
-    const history = messages.slice(0, messages.indexOf(question));
-    setMessages((m) => m.filter((x) => x.id !== failedId));
-    void ask(question.content, history);
-  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -214,7 +153,7 @@ export function Questions({ token, suggestions, offline, onAsk, onShowOnBoard, c
         />
         <div className="mt-2 flex items-end justify-between gap-2">
           <p id={hintId} className="text-xs text-muted">
-            {offline ? "You're offline. Your draft is kept." : pending ? "Thinking… You can draft your next question." : "Enter to send · Shift+Enter for a new line"}
+            {lockedReason ?? (offline ? "You're offline. Your draft is kept." : pending ? "Thinking… You can draft your next question." : "Enter to send · Shift+Enter for a new line")}
           </p>
           <IconButton type="submit" label="Send question" variant="filled" disabled={!draft.trim() || pending || offline}>
             <SendIcon />

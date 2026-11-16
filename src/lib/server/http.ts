@@ -11,8 +11,29 @@ export function jsonError(message: string, status: number, headers?: HeadersInit
 export async function readJson(request: Request, maxBytes: number): Promise<Record<string, unknown> | null> {
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > maxBytes) return null;
-  const text = await request.text();
-  if (text.length > maxBytes) return null;
+  if (!request.body) return null;
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        // Stop consuming immediately, even if the source takes time to cancel.
+        void reader.cancel().catch(() => {});
+        return null;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+
   try {
     const value = JSON.parse(text);
     return value && typeof value === "object" && !Array.isArray(value) ? value : null;
