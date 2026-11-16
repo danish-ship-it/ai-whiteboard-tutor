@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const limited = limitOrNull(request, "demo-login", 20, 10 * 60_000);
   if (limited) return limited;
   const body = await readJson(request, 1_000);
-  const account = typeof body?.account === "string" && body.account in DEMO_ACCOUNTS ? DEMO_ACCOUNTS[body.account as DemoAccount] : null;
+  const account = typeof body?.account === "string" && Object.hasOwn(DEMO_ACCOUNTS, body.account) ? DEMO_ACCOUNTS[body.account as DemoAccount] : null;
   if (!account) return jsonError("Unknown demo account.", 400);
 
   const supabase = await supabaseServer();

@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/server/auth";
+import { chargeBudget, requireUser } from "@/lib/server/auth";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
 import { visualPrompt } from "@/lib/lesson/visual-prompt";
 import { readLessonToken } from "@/lib/server/lesson-token";
@@ -35,13 +35,19 @@ export async function POST(request: Request) {
     const prompt = visualPrompt(lesson, scene);
 
     // Task ids go to the browser as signed receipts (see task-receipt.ts).
-    if (kind === "image") return Response.json({ taskId: issueTaskReceipt(await provider.startImage(prompt)) });
+    if (kind === "image") {
+      const over = await chargeBudget("image");
+      if (over) return over;
+      return Response.json({ taskId: issueTaskReceipt(await provider.startImage(prompt)) });
+    }
 
     // The clip is animated from a picture this server made, looked up by its task, never from a URL the browser sends.
     const imageTask = readTaskReceipt(body.imageTask);
     if (!imageTask) return jsonError("Bad request.", 400);
     const image = await provider.getTask(imageTask);
     if (image.status !== "done" || !image.url) return jsonError("Make the picture first.", 409);
+    const over = await chargeBudget("video");
+    if (over) return over;
     return Response.json({ taskId: issueTaskReceipt(await provider.startVideo(image.url, prompt)) });
   } catch (error) {
     return providerError(error);

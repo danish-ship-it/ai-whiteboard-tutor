@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/server/auth";
+import { chargeBudget, requireUser } from "@/lib/server/auth";
 import { DEFAULT_AUDIENCE, isAudience } from "@/lib/lesson/audience";
 import { generateLesson } from "@/lib/server/claude";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
@@ -24,6 +24,8 @@ export async function POST(request: Request) {
   try {
     const started = Date.now();
     const audience = isAudience(body?.audience) ? body.audience : DEFAULT_AUDIENCE;
+    const over = await chargeBudget("lesson");
+    if (over) return over;
     const { lesson, issues } = await generateLesson(topic, audience, request.signal);
     console.info(`lesson ready in ${Date.now() - started} ms (${issues.length} repairs)`, issues.slice(0, 10));
     return Response.json({ lesson, token: issueLessonToken(lesson) });

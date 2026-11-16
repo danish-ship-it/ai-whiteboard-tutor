@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/server/auth";
+import { chargeBudget, requireUser } from "@/lib/server/auth";
 import { answerFollowUp } from "@/lib/server/claude";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
 import { readLessonToken } from "@/lib/server/lesson-token";
@@ -37,6 +37,8 @@ export async function POST(request: Request) {
     // History must start with the learner and alternate; drop a dangling leading assistant turn.
     const history = readHistory(body.history);
     while (history[0]?.role === "assistant") history.shift();
+    const over = await chargeBudget("ask");
+    if (over) return over;
     return Response.json(await answerFollowUp(lesson, history, question, request.signal));
   } catch (error) {
     return errorResponse(error);

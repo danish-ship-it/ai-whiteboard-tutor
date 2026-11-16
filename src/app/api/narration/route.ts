@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/server/auth";
+import { chargeBudget, requireUser } from "@/lib/server/auth";
 import { buildNarration } from "@/lib/lesson/narration";
 import { synthesizeNarration } from "@/lib/server/elevenlabs";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
@@ -19,6 +19,8 @@ export async function POST(request: Request) {
     const lesson = readLessonToken(body.token);
     const { text } = buildNarration(lesson);
     const started = Date.now();
+    const over = await chargeBudget("narration");
+    if (over) return over;
     const audio = await synthesizeNarration(text, request.signal);
     console.info(`narration ready in ${Date.now() - started} ms, ${Math.round((audio.audioBase64.length * 3) / 4 / 1024)} KB`);
     return Response.json(audio, { headers: { "Cache-Control": "no-store" } });

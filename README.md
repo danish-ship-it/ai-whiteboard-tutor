@@ -162,7 +162,9 @@ These numbers come from local and production runs in November 2026.
 ## Security and limits
 
 - API keys live only in server environment variables.
-- With Supabase on, every paid endpoint (lesson, voice, questions, pictures) requires a signed-in user, checked in the route handler (the proxy only redirects). Rate limits then count per user instead of per IP.
+- With Supabase on, every paid endpoint (lesson, voice, questions, pictures) requires a signed-in **member of a school**, checked in the route handler (the proxy only redirects). A self-registered account with no school gets 403. In production, paid routes refuse to run if sign-in isn't configured. Rate limits then count per user instead of per IP.
+- Each school has a daily AI budget (40 lessons, 40 narrations, 200 questions, 120 pictures, 30 clips), counted in the database by a single atomic statement, so it holds across every server instance and under concurrent requests. Once spent, paid routes return 429 until the next day.
+- A saved lesson's school and author can't be changed (a database trigger), so a member of two schools can't move or re-attribute lessons.
 - Tenant isolation is enforced by Postgres row-level security, not by the app: lessons and narration files are only visible to members of their school, through a `security definer` helper with an empty `search_path`. `scripts/check-tenants.mjs` signs in as both demo schools and checks 12 cases (read, edit, delete, insert and audio access across schools, and signed-out access).
 - Request bodies are read as a stream and cut off at a byte limit, whatever `Content-Length` says. Tokens are checked for exact structure, a finite issue time and a constant-time signature match.
 - Security headers on every route: `nosniff`, strict referrer policy, no framing (`X-Frame-Options` and CSP `frame-ancestors`), camera/microphone/location disabled.
@@ -173,7 +175,9 @@ These numbers come from local and production runs in November 2026.
 
 ## Known limitations
 
-- The rate limiter is in memory per server instance, so it is a basic guard rather than a global quota. Production use would move it to a shared store (e.g. Redis).
+- The 10-minute rate limiter is in memory per server instance; the daily school budget in the database is the real spending cap.
+- Signed lesson tokens and picture receipts aren't bound to a user or school, so a copied one can be replayed by another signed-in member until it expires (12 hours for lessons). The daily budget bounds what that can cost.
+- The demo schools are public on purpose, so anyone can spend up to their daily budget.
 - Board labels are capped at three short words to stay legible on phones. Very dense topics are simplified rather than crammed in.
 - Follow-up answers point at existing board elements. They don't draw new diagrams.
 - Generation takes 30–40 s end to end. The progress screen shows each stage and the lesson outline; demo and saved lessons skip the wait entirely. Streaming the first scene before the rest is ready would cut it further.
