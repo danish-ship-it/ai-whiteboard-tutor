@@ -19,6 +19,16 @@ interface Props {
   camera?: Camera;
   /** Moving parts run only while the lesson plays. */
   playing?: boolean;
+  /**
+   * Line boil: which of three hand-drawn takes every stroke uses. Stepping it a few times a second
+   * makes the lines tremble like an animated pencil drawing; the structure of each shape never moves.
+   */
+  boil?: number;
+  /**
+   * How far the scene has slid in (spring, 0..1+). Only the video export passes it; the live board
+   * plays the same entrance as a CSS animation.
+   */
+  enter?: number;
 }
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -28,6 +38,22 @@ const tint = (tone: string) => `var(--tint-${tone})`;
 const STROKE = 2.5;
 const EMPHASIS_STROKE = 3;
 const TITLE = { x: 64, y: 104, size: 76 };
+/** Hand lettering for everything on the board (equations keep the mono face). */
+const HAND_FONT = "var(--font-hand), var(--font-instrument), cursive";
+/** Number of hand-drawn takes the line boil cycles through. */
+export const TAKES = 3;
+/** The same seed for take 0 (the board's settled look), a different tremor for the others. */
+const seedFor = (key: string, take: number) => (take ? `${key}~${take}` : key);
+
+/** Inline version of the board-scene-in animation, for frames rendered one at a time. */
+function sceneEnterStyle(enter: number): React.CSSProperties {
+  const left = 1 - enter;
+  return {
+    transform: `translate(${(left * 70).toFixed(2)}px, 0px) rotate(${(-left * 0.8).toFixed(3)}deg)`,
+    transformOrigin: `${BOARD_W / 2}px ${BOARD_H / 2}px`,
+    opacity: clamp01(enter * 1.6),
+  };
+}
 
 /**
  * Renders one board state. It owns no timers or animation state: everything
@@ -37,9 +63,10 @@ const TITLE = { x: 64, y: 104, size: 76 };
  * Every element is drawn in two phases, the way a teacher works at a board:
  * the marker first draws the outline or picture, then writes the label.
  */
-export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgress, emphasis = [], reducedMotion, description, camera = WIDE, playing = false }: Props) {
+export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgress, emphasis = [], reducedMotion, description, camera = WIDE, playing = false, boil = 0, enter }: Props) {
   const scene = scenes[state.sceneIndex];
-  const paths = useMemo(() => buildPaths(scene), [scene]);
+  const take = boil % TAKES;
+  const paths = useMemo(() => buildPaths(scene, take), [scene, take]);
   if (!scene) return null;
 
   const reveal = (n: number) => (reducedMotion ? (n > 0 ? 1 : 0) : n);
@@ -58,20 +85,28 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
         <filter id="board-glow" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="7" />
         </filter>
+        <PaperDefs />
       </defs>
       <g
         aria-hidden="true"
-        fontFamily="var(--font-instrument), Arial, sans-serif"
-        style={{ transform: cameraSvgTransform(camera), transformOrigin: "0 0", transition: reducedMotion ? undefined : CAMERA_TRANSITION }}
+        fontFamily={HAND_FONT}
+        style={{ transform: cameraSvgTransform(camera), transformOrigin: "0 0", transition: reducedMotion || enter !== undefined ? undefined : CAMERA_TRANSITION }}
       >
-        <SceneTitle text={scene.title} progress={title} />
+        <Paper />
+        {/* Keyed on the scene, so each new step slides onto the page with a little spring. */}
+        <g
+          key={state.sceneIndex}
+          className={enter === undefined && !reducedMotion ? "board-scene-in" : undefined}
+          style={enter === undefined ? undefined : sceneEnterStyle(enter)}
+        >
+        <SceneTitle text={scene.title} progress={title} take={take} />
 
         {state.elements.map((el) => {
           const shape = scene.shapes[el.id];
           if (!shape) return null;
           // The "current" tint appears once the element is drawn, so it never frames an empty space.
           const current = !quiet && (emphasized.size ? emphasized.has(el.id) : el.active && el.progress >= 1);
-          return current ? <Emphasis key={`em-${el.id}`} shape={shape} sweep={!reducedMotion && playing} /> : null;
+          return current ? <Emphasis key={`em-${el.id}`} shape={shape} sweep={!reducedMotion && playing} take={take} /> : null;
         })}
 
         {state.elements.map((el) => {
@@ -79,7 +114,19 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
           const connector = scene.connectors[el.id];
           const earlier = !quiet && (emphasized.size ? !emphasized.has(el.id) : el.dimmed);
           if (shape)
-            return <ShapeView key={el.id} shape={shape} path={paths.shapes[el.id]} progress={reveal(el.progress)} earlier={earlier} motion={motion} tracing={!!motion && el.active} />;
+            return (
+              <ShapeView
+                key={el.id}
+                shape={shape}
+                path={paths.shapes[el.id]}
+                pass={paths.passes[el.id]}
+                progress={reveal(el.progress)}
+                earlier={earlier}
+                motion={motion}
+                tracing={!!motion && el.active}
+                take={take}
+              />
+            );
           if (connector)
             return <ConnectorView key={el.id} c={connector} path={paths.connectors[el.id]} progress={reveal(el.progress)} earlier={earlier} motion={earlier ? undefined : motion} />;
           return null;
@@ -88,10 +135,11 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
         {!quiet &&
           state.highlights.map((h) => {
             const target = scene.shapes[h.target];
-            return target ? <HighlightMark key={`hl-${h.target}`} shape={target} style={h.style} progress={reveal(h.progress)} glow={!reducedMotion && playing} /> : null;
+            return target ? <HighlightMark key={`hl-${h.target}`} shape={target} style={h.style} progress={reveal(h.progress)} glow={!reducedMotion && playing} take={take} /> : null;
           })}
 
-        {!state.ended && <Nib at={nibPosition(scene, state, paths, title, reducedMotion)} animate={!reducedMotion} />}
+        {!state.ended && <Nib at={nibPosition(scene, state, paths, title, take, reducedMotion)} animate={!reducedMotion && enter === undefined} />}
+        </g>
       </g>
     </svg>
   );
@@ -158,14 +206,14 @@ interface NibAt {
  * Pointing at the element being explained is the one tutor "presence" the
  * learning research supports (see research/learning-ux-report.md §4).
  */
-function nibPosition(scene: SceneLayout, state: BoardState, paths: ReturnType<typeof buildPaths>, title: number, reducedMotion?: boolean): NibAt | null {
+function nibPosition(scene: SceneLayout, state: BoardState, paths: ReturnType<typeof buildPaths>, title: number, take: number, reducedMotion?: boolean): NibAt | null {
   if (!reducedMotion) {
     if (title > 0 && title < 1) return { x: TITLE.x + titleWidth(scene.title) * title, y: TITLE.y + 6, drawing: true };
 
     for (const h of [...state.highlights].reverse()) {
       const shape = scene.shapes[h.target];
       if (shape && h.progress > 0 && h.progress < 1) {
-        const p = pointOnPath(highlightPath(shape, h.style), h.progress);
+        const p = pointOnPath(highlightPath(shape, h.style, take), h.progress);
         if (p) return { ...p, drawing: true };
       }
     }
@@ -238,25 +286,66 @@ function Nib({ at, animate }: { at: NibAt | null; animate: boolean }) {
   );
 }
 
-function buildPaths(scene: SceneLayout | undefined) {
+/**
+ * Every outline and arrow for one take of the boil. Each shape also gets a thin second pass that
+ * doesn't quite agree with the first, the way an outline is pencilled in and then inked over.
+ */
+function buildPaths(scene: SceneLayout | undefined, take = 0) {
   const shapes: Record<string, string> = {};
-  const connectors: Record<string, { line: string; heads: string[] }> = {};
-  if (!scene) return { shapes, connectors };
+  const passes: Record<string, string> = {};
+  const connectors: Record<string, { line: string; pass: string; heads: string[] }> = {};
+  if (!scene) return { shapes, passes, connectors };
   for (const s of Object.values(scene.shapes)) {
     if (s.kind !== "shape" || s.shape === "none") continue;
-    if (s.shape === "circle") {
-      const c = center(s);
-      shapes[s.id] = sketchEllipse(c.x, c.y, s.w / 2, s.h / 2, s.id);
-    } else {
-      shapes[s.id] = sketchRect(s.x, s.y, s.w, s.h, s.id, s.shape === "pill" ? s.h / 2 : s.shape === "note" ? 6 : 14);
-    }
+    const outline = (seed: string) => {
+      if (s.shape === "circle") {
+        const c = center(s);
+        return sketchEllipse(c.x, c.y, s.w / 2, s.h / 2, seed);
+      }
+      return sketchRect(s.x, s.y, s.w, s.h, seed, s.shape === "pill" ? s.h / 2 : s.shape === "note" ? 6 : 14);
+    };
+    shapes[s.id] = outline(seedFor(s.id, take));
+    passes[s.id] = outline(seedFor(`${s.id}:pass`, take));
   }
   for (const c of Object.values(scene.connectors)) {
-    const heads = c.style === "line" ? [] : [arrowHead(c.from, c.to, c.id)];
-    if (c.style === "double") heads.push(arrowHead(c.to, c.from, `${c.id}:b`));
-    connectors[c.id] = { line: sketchLine(c.from, c.to, c.id), heads };
+    const heads = c.style === "line" ? [] : [arrowHead(c.from, c.to, seedFor(c.id, take))];
+    if (c.style === "double") heads.push(arrowHead(c.to, c.from, seedFor(`${c.id}:b`, take)));
+    connectors[c.id] = { line: sketchLine(c.from, c.to, seedFor(c.id, take)), pass: sketchLine(c.from, c.to, seedFor(`${c.id}:pass`, take)), heads };
   }
-  return { shapes, connectors };
+  return { shapes, passes, connectors };
+}
+
+/** Paper: a faint dot grid, a warm vignette at the edges and a coffee ring in one corner. */
+function PaperDefs() {
+  return (
+    <>
+      <pattern id="paper-dots" width={48} height={48} patternUnits="userSpaceOnUse">
+        <circle cx={24} cy={24} r={1.7} fill={ink("ink")} opacity={0.12} />
+      </pattern>
+      <radialGradient id="paper-vignette" cx="50%" cy="46%" r="72%">
+        <stop offset="62%" stopColor={ink("orange")} stopOpacity={0} />
+        <stop offset="100%" stopColor={ink("orange")} stopOpacity={0.09} />
+      </radialGradient>
+      <radialGradient id="paper-smudge">
+        <stop offset="0%" stopColor={ink("ink")} stopOpacity={0.05} />
+        <stop offset="100%" stopColor={ink("ink")} stopOpacity={0} />
+      </radialGradient>
+    </>
+  );
+}
+
+function Paper() {
+  return (
+    <g>
+      <rect width={BOARD_W} height={BOARD_H} fill="var(--board)" />
+      <rect width={BOARD_W} height={BOARD_H} fill="url(#paper-dots)" />
+      <ellipse cx={300} cy={930} rx={260} ry={90} fill="url(#paper-smudge)" transform="rotate(-8 300 930)" />
+      <ellipse cx={1500} cy={210} rx={220} ry={70} fill="url(#paper-smudge)" transform="rotate(12 1500 210)" />
+      <path d={sketchEllipse(1770, 965, 118, 112, "paper:ring")} fill="none" stroke={ink("orange")} strokeWidth={9} opacity={0.06} />
+      <path d={sketchEllipse(1764, 970, 104, 99, "paper:ring2")} fill="none" stroke={ink("orange")} strokeWidth={2} opacity={0.07} />
+      <rect width={BOARD_W} height={BOARD_H} fill="url(#paper-vignette)" />
+    </g>
+  );
 }
 
 const strokeProps = {
@@ -290,7 +379,7 @@ function WrittenText({ id, shape, progress }: { id: string; shape: ShapeGeometry
       <text
         fill={isEquation || shape.kind === "picture" ? ink(shape.tone) : ink("ink")}
         fontSize={shape.fontSize}
-        fontWeight={isEquation ? 500 : 600}
+        fontWeight={isEquation ? 500 : 700}
         fontFamily={isEquation ? "var(--font-plex-mono), monospace" : undefined}
         textAnchor="middle"
         clipPath={progress < 1 ? `url(#${clipId})` : undefined}
@@ -305,7 +394,7 @@ function WrittenText({ id, shape, progress }: { id: string; shape: ShapeGeometry
   );
 }
 
-function SceneTitle({ text, progress }: { text: string; progress: number }) {
+function SceneTitle({ text, progress, take }: { text: string; progress: number; take: number }) {
   if (progress <= 0) return null;
   const width = titleWidth(text);
   return (
@@ -315,10 +404,11 @@ function SceneTitle({ text, progress }: { text: string; progress: number }) {
           <rect x={TITLE.x - 10} y={TITLE.y - TITLE.size} width={(width + 40) * progress} height={TITLE.size + 30} />
         </clipPath>
       )}
-      <text x={TITLE.x} y={TITLE.y} fontSize={TITLE.size} fontWeight={600} fill={ink("ink")} clipPath={progress < 1 ? "url(#write-title)" : undefined}>
+      <text x={TITLE.x} y={TITLE.y} fontSize={TITLE.size} fontWeight={700} fill={ink("ink")} clipPath={progress < 1 ? "url(#write-title)" : undefined}>
         {text}
       </text>
-      <path d={sketchUnderline(TITLE.x, 128, width, `title:${text}`)} {...strokeProps} strokeDashoffset={1 - clamp01(progress)} stroke={ink("ink")} strokeWidth={1.5} opacity={0.3} />
+      {/* A red marker underline marks the title, as in a sketchbook. */}
+      <path d={sketchUnderline(TITLE.x, 132, width, seedFor(`title:${text}`, take))} {...strokeProps} strokeDashoffset={1 - clamp01(progress)} stroke={ink("red")} strokeWidth={3} opacity={0.7} />
     </g>
   );
 }
@@ -328,13 +418,18 @@ type MotionStyle = { animationPlayState: "running" | "paused" } | undefined;
 function ShapeView({
   shape,
   path,
+  pass,
   progress,
   earlier,
   motion,
   tracing,
+  take,
 }: {
   shape: ShapeGeometry;
   path?: string;
+  /** The thinner second stroke over the outline. */
+  pass?: string;
+  take: number;
   progress: number;
   earlier: boolean;
   motion: MotionStyle;
@@ -350,9 +445,10 @@ function ShapeView({
     <g>
       {path && shape.shape === "note" && art > 0.2 && <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} rx={6} fill={tint(shape.tone)} />}
       {path && <path d={path} {...strokeProps} strokeDashoffset={1 - art} stroke={color} strokeWidth={STROKE} opacity={opacity} />}
+      {pass && <path d={pass} {...strokeProps} strokeDashoffset={1 - art} stroke={color} strokeWidth={1.2} opacity={opacity * 0.45} />}
       {shape.picture && art > 0 && (
         <g className={moving ? `board-motion board-${moving}` : undefined} style={moving ? motion : undefined}>
-        <g transform={`translate(${shape.picture.tx} ${shape.picture.ty}) scale(${shape.picture.scale})`}>
+        <g transform={`${tremor(shape, take)} translate(${shape.picture.tx} ${shape.picture.ty}) scale(${shape.picture.scale})`}>
           {/* Stroke width is divided by the scale instead of using non-scaling-stroke, which breaks the
               pathLength-based reveal on scaled multi-part paths (circles drew only halfway). */}
           <path
@@ -389,7 +485,7 @@ function ConnectorView({
   motion,
 }: {
   c: ConnectorGeometry;
-  path?: { line: string; heads: string[] };
+  path?: { line: string; pass: string; heads: string[] };
   progress: number;
   earlier: boolean;
   motion: MotionStyle;
@@ -402,6 +498,7 @@ function ConnectorView({
     <g>
       <g stroke={color} opacity={earlier ? 0.85 : 1}>
         <path d={path.line} {...strokeProps} strokeDashoffset={1 - line} strokeWidth={STROKE} />
+        <path d={path.pass} {...strokeProps} strokeDashoffset={1 - line} strokeWidth={1.2} opacity={0.45} />
         {path.heads.map((d, i) => (
           <path key={i} d={d} {...strokeProps} strokeDashoffset={1 - head} strokeWidth={STROKE} />
         ))}
@@ -411,7 +508,7 @@ function ConnectorView({
         )}
       </g>
       {c.label && head > 0 && (
-        <text x={c.labelAt.x} y={c.labelAt.y + 12} fill={color} stroke="var(--board)" strokeWidth={14} paintOrder="stroke" fontSize={46} fontWeight={600} textAnchor="middle" opacity={head}>
+        <text x={c.labelAt.x} y={c.labelAt.y + 12} fill={color} stroke="var(--board)" strokeWidth={14} paintOrder="stroke" fontSize={46} fontWeight={700} textAnchor="middle" opacity={head}>
           {c.label}
         </text>
       )}
@@ -420,7 +517,7 @@ function ConnectorView({
 }
 
 /** Current element: a tint behind it, swept on left to right like a highlighter, plus a 3px underline. */
-function Emphasis({ shape, sweep }: { shape: ShapeGeometry; sweep: boolean }) {
+function Emphasis({ shape, sweep, take }: { shape: ShapeGeometry; sweep: boolean; take: number }) {
   const pad = 16;
   return (
     <g>
@@ -434,7 +531,7 @@ function Emphasis({ shape, sweep }: { shape: ShapeGeometry; sweep: boolean }) {
         className={sweep ? "board-sweep" : undefined}
       />
       <path
-        d={sketchUnderline(shape.x + shape.w * 0.15, shape.y + shape.h + pad - 4, shape.w * 0.7, `cur:${shape.id}`)}
+        d={sketchUnderline(shape.x + shape.w * 0.15, shape.y + shape.h + pad - 4, shape.w * 0.7, seedFor(`cur:${shape.id}`, take))}
         {...strokeProps}
         strokeDashoffset={0}
         stroke={ink(shape.tone)}
@@ -445,16 +542,24 @@ function Emphasis({ shape, sweep }: { shape: ShapeGeometry; sweep: boolean }) {
   );
 }
 
-function highlightPath(shape: ShapeGeometry, style: "circle" | "underline") {
+function highlightPath(shape: ShapeGeometry, style: "circle" | "underline", take: number) {
   const c = center(shape);
   return style === "circle"
-    ? sketchEllipse(c.x, c.y, shape.w / 2 + 30, shape.h / 2 + 26, `hl:${shape.id}`)
-    : sketchUnderline(shape.x, shape.y + shape.h + 18, shape.w, `ul:${shape.id}`);
+    ? sketchEllipse(c.x, c.y, shape.w / 2 + 30, shape.h / 2 + 26, seedFor(`hl:${shape.id}`, take))
+    : sketchUnderline(shape.x, shape.y + shape.h + 18, shape.w, seedFor(`ul:${shape.id}`, take));
+}
+
+/** A drawn picture trembles with the boil: a pixel or two of shift and a fraction of a degree, around its centre. */
+function tremor(shape: ShapeGeometry, take: number): string {
+  if (!take) return "";
+  const r = (n: number) => (((Math.sin((take * 12.9898 + n) * 78.233 + shape.x) * 43758.5453) % 1) + 1) % 1 - 0.5;
+  const c = center(shape);
+  return `translate(${(r(1) * 3).toFixed(2)} ${(r(2) * 3).toFixed(2)}) rotate(${(r(3) * 0.8).toFixed(2)} ${c.x.toFixed(0)} ${c.y.toFixed(0)})`;
 }
 
 /** A marker circle or underline, laid over a soft highlighter band; when it closes, a brief glow. */
-function HighlightMark({ shape, style, progress, glow }: { shape: ShapeGeometry; style: "circle" | "underline"; progress: number; glow: boolean }) {
-  const d = highlightPath(shape, style);
+function HighlightMark({ shape, style, progress, glow, take }: { shape: ShapeGeometry; style: "circle" | "underline"; progress: number; glow: boolean; take: number }) {
+  const d = highlightPath(shape, style, take);
   const color = ink(shape.tone === "ink" ? "red" : shape.tone);
   return (
     <g>

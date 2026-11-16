@@ -121,6 +121,11 @@ export const ShrinkIcon = (p: P) => (
 );
 
 /** The Chalk brand mark: a drawn right angle. */
+export const DownloadIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </Icon>
+);
 export const BrandMark = ({ size = 24 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path d="M5 3.5v15.5h15.5" stroke="var(--action)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />

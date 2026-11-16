@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BOARD_H, BOARD_W, layoutLesson } from "../board/layout";
-import { WIDE, boardCamera, iconMotion } from "../board/motion";
+import { WIDE, boardCamera, followCamera, iconMotion, spring } from "../board/motion";
 import { buildNarration } from "../lesson/narration";
 import { validateLesson } from "../lesson/validate";
 import { buildCharClock } from "../timeline/align";
@@ -69,5 +69,34 @@ describe("iconMotion", () => {
     expect(iconMotion("heart")).toBe("pulse");
     expect(iconMotion("car")).toBe("drive");
     expect(iconMotion("calculator")).toBeUndefined();
+  });
+});
+
+describe("spring", () => {
+  it("starts at rest, overshoots a little and settles on 1", () => {
+    expect(spring(0)).toBe(0);
+    expect(spring(-1)).toBe(0);
+    const samples = Array.from({ length: 200 }, (_, i) => spring(i / 100));
+    const peak = Math.max(...samples);
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThan(1.15);
+    expect(spring(3)).toBeCloseTo(1, 3);
+  });
+
+  it("is a pure function of time", () => {
+    expect(spring(0.37)).toBe(spring(0.37));
+  });
+});
+
+describe("followCamera", () => {
+  it("eases toward the target without passing it", () => {
+    const target = { scale: 1.2, x: -0.1, y: -0.05 };
+    let c = WIDE;
+    for (let i = 0; i < 120; i++) {
+      c = followCamera(c, target, 1 / 24);
+      expect(c.scale).toBeLessThanOrEqual(target.scale + 1e-9);
+    }
+    expect(c.scale).toBeCloseTo(1.2, 3);
+    expect(followCamera(WIDE, target, 0)).toEqual(WIDE);
   });
 });

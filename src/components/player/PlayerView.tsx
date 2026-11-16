@@ -14,6 +14,7 @@ import { captionsSnapshot, setCaptions, subscribeCaptions } from "@/lib/prefs";
 import { Recall } from "./Recall";
 import { Transport } from "./Transport";
 import { BoardPhoto } from "./BoardPhoto";
+import { VideoExport } from "./VideoExport";
 import { layoutLesson } from "@/lib/board/layout";
 import { CAMERA_TRANSITION, boardCamera, cameraCssTransform } from "@/lib/board/motion";
 import { useSceneVisuals, type PresetVisuals } from "@/hooks/useSceneVisuals";
@@ -36,6 +37,8 @@ function subscribeReducedMotion(callback: () => void) {
 }
 
 const COMPACT = "(max-width: 767px)";
+/** Line boil steps per second: animation "on 2s" at 24 fps is 12; 8 reads as calmer for a lesson. */
+const BOIL_PER_SECOND = 8;
 function subscribeCompact(callback: () => void) {
   const mq = window.matchMedia(COMPACT);
   mq.addEventListener("change", callback);
@@ -255,6 +258,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
   // With pictures on, every step keeps the board's top-right corner free for its photo.
   const boardScenes = useMemo(() => (art.available ? layoutLesson(lesson, { photo: true }) : scenes), [art.available, lesson, scenes]);
   const photoBox = boardScenes[state.sceneIndex]?.photo;
+  const exportPictures = useMemo(() => Object.fromEntries(Object.entries(art.visuals).map(([id, v]) => [id, v?.image])), [art.visuals]);
   const camera = useMemo(
     () => boardCamera(boardScenes[state.sceneIndex], state, { emphasis, titleProgress, reducedMotion: reducedMotion || compact }),
     [boardScenes, state, emphasis, titleProgress, reducedMotion, compact],
@@ -285,9 +289,16 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
               {timeline.quality === "estimated" && data.audioUrl ? " · approximate sync" : ""}
             </p>
           </div>
-          <Button variant="secondary" className="shrink-0" onClick={onNewTopic}>
-            New topic
-          </Button>
+          <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+            <VideoExport
+              scenes={boardScenes}
+              plainScenes={scenes}
+              pictures={exportPictures}
+              timeline={timeline} title={lesson.title} audioUrl={voiceError ? null : data.audioUrl} onStart={playback.pause} />
+            <Button variant="secondary" className="shrink-0" onClick={onNewTopic}>
+              New topic
+            </Button>
+          </div>
         </div>
 
         {voiceProblem && (
@@ -324,6 +335,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
               reducedMotion={reducedMotion}
               camera={camera}
               playing={status === "playing"}
+              boil={status === "playing" && !reducedMotion ? Math.floor(time * BOIL_PER_SECOND) : 0}
               description={`${lesson.title}. ${lesson.objective}`}
             />
             {photoBox && lessonScene && (

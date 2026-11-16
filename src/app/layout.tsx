@@ -1,10 +1,12 @@
 import Script from "next/script";
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Instrument_Sans, Newsreader } from "next/font/google";
+import { IBM_Plex_Mono, Instrument_Sans, Kalam, Newsreader } from "next/font/google";
 import "./globals.css";
 
 const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], weight: ["400", "500"] });
 const instrument = Instrument_Sans({ variable: "--font-instrument", subsets: ["latin"], weight: ["400", "500", "600"] });
+/** Hand lettering on the whiteboard. */
+const hand = Kalam({ variable: "--font-hand", subsets: ["latin"], weight: ["400", "700"] });
 const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500"] });
 
 export const metadata: Metadata = {
@@ -24,7 +26,7 @@ const themeScript = `try{var t=localStorage.getItem("chalk-theme");if(t==="dark"
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${newsreader.variable} ${instrument.variable} ${plexMono.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className={`${newsreader.variable} ${instrument.variable} ${plexMono.variable} ${hand.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <Script id="theme" strategy="beforeInteractive">
           {themeScript}

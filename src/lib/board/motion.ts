@@ -71,3 +71,20 @@ export function boardCamera(
 export const cameraSvgTransform = (c: Camera) => `translate(${c.x * BOARD_W}px, ${c.y * BOARD_H}px) scale(${c.scale})`;
 export const cameraCssTransform = (c: Camera) => `translate(${c.x * 100}%, ${c.y * 100}%) scale(${c.scale})`;
 export const CAMERA_TRANSITION = "transform 1100ms cubic-bezier(0.4, 0, 0.2, 1)";
+
+/**
+ * A closed-form spring from 0 to 1 (underdamped, so it overshoots a little and settles).
+ * Being a pure function of time, a frame renders the same however it was reached.
+ */
+export function spring(t: number, { frequency = 1.6, damping = 0.55 } = {}): number {
+  if (t <= 0) return 0;
+  const w = 2 * Math.PI * frequency;
+  const wd = w * Math.sqrt(1 - damping * damping);
+  return 1 - Math.exp(-damping * w * t) * (Math.cos(wd * t) + ((damping * w) / wd) * Math.sin(wd * t));
+}
+
+/** Eases a camera toward a target, the way the CSS transition does on the live board. */
+export function followCamera(from: Camera, to: Camera, dt: number, seconds = 0.45): Camera {
+  const k = 1 - Math.exp(-dt / seconds);
+  return { scale: from.scale + (to.scale - from.scale) * k, x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
+}
