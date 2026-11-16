@@ -43,7 +43,7 @@ export interface Timeline {
 }
 
 // Slow enough to watch the marker trace each stroke and write each label.
-const DRAW_SECONDS: Record<Action["kind"], number> = { add: 1.5, write: 1.8, connect: 1.1, icon: 2.2, sketch: 2.2, highlight: 0.8 };
+const DRAW_SECONDS: Record<Action["kind"], number> = { add: 1.5, write: 1.8, connect: 1.1, icon: 2.2, sketch: 2.2, graph: 4.5, highlight: 0.8 };
 const MIN_HIGHLIGHT = 1.6;
 /** Shortest a stroke may be squeezed to so it still reads as drawn. */
 /** Shortest stroke when a scene is out of time: effectively appears at once. */

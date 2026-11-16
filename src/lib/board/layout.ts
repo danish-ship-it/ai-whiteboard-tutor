@@ -1,6 +1,7 @@
 import { GRID_COLS, GRID_ROWS, parsePoints, type Lesson, type SketchAction, type Tone } from "../lesson/schema";
 import { ICONS, type IconName } from "./icons";
 import { iconMotion, type Motion } from "./icon-motion";
+import { graphGeometry, parseGraph, type GraphGeometry } from "./graph";
 
 export const BOARD_W = 1600;
 export const BOARD_H = 900;
@@ -36,6 +37,8 @@ export interface ShapeGeometry extends Box {
   kind: "shape" | "write" | "picture";
   /** Pictures only: the drawing, and the band under it where the caption is written. */
   picture?: Picture;
+  /** Graphs only: exact axes, curves and points in board units (see graph.ts). */
+  graph?: GraphGeometry;
   /** Pictures only: how the drawing keeps moving once drawn (see motion.ts). */
   motion?: Motion;
   textBox?: Box;
@@ -116,6 +119,16 @@ export function layoutLesson(lesson: Lesson, { photo = false }: { photo?: boolea
         const picture = action.kind === "icon" ? placeIcon(ICONS[action.icon as IconName] ?? ICONS["circle-dot"], art) : sketchPicture(action, art);
         const motion = action.kind === "icon" ? iconMotion(action.icon) : "trace";
         shapes[action.id] = { id: action.id, kind: "picture", shape: "none", ...box, lines, fontSize, tone: action.tone, picture, textBox, motion };
+      } else if (action.kind === "graph") {
+        const cells = placeWithoutOverlap({ col: action.col, row: action.row, w: action.w, h: action.h }, occupied);
+        markCells(cells, occupied);
+        const box = cellsToBox(cells);
+        const band = action.label ? Math.min(64, box.h * 0.18) : 0;
+        const art: Box = { x: box.x, y: box.y, w: box.w, h: box.h - band };
+        const textBox: Box = { x: box.x, y: box.y + box.h - band, w: box.w, h: band };
+        const { lines, fontSize } = action.label ? fitText(action.label, textBox.w, band, 40) : { lines: [], fontSize: 40 };
+        const graph = graphGeometry(parseGraph(action.spec), art);
+        shapes[action.id] = { id: action.id, kind: "picture", shape: "none", ...box, lines, fontSize, tone: action.tone, graph, textBox };
       } else if (action.kind === "connect") {
         const a = shapes[action.from];
         const b = shapes[action.to];

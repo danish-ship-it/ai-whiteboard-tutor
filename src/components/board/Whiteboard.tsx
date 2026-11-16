@@ -4,6 +4,7 @@ import { memo, useMemo } from "react";
 import { BOARD_H, BOARD_W, center, type Box, type ConnectorGeometry, type SceneLayout, type ShapeGeometry } from "@/lib/board/layout";
 import { CAMERA_TRANSITION, WIDE, cameraSvgTransform, type Camera } from "@/lib/board/motion";
 import { arrowHead, sketchEllipse, sketchLine, sketchRect, sketchUnderline } from "@/lib/board/sketch";
+import { curveTip, type GraphGeometry } from "@/lib/board/graph";
 import type { BoardState } from "@/lib/timeline/timeline";
 
 interface Props {
@@ -125,6 +126,7 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
                 motion={motion}
                 tracing={!!motion && el.active}
                 take={take}
+                t={state.t}
               />
             );
           if (connector)
@@ -183,6 +185,11 @@ function describeBoard(scene: SceneLayout, state: BoardState, prefix?: string): 
     const shape = scene.shapes[el.id];
     if (shape) {
       if (shape.kind === "write") return [`the equation ${text(el.id)}`];
+      if (shape.graph) {
+        const curves = shape.graph.curves.map((c) => c.label?.text).filter(Boolean);
+        const points = shape.graph.points.map((p) => p.label.text);
+        return [`a graph${curves.length ? ` of ${curves.join(" and ")}` : ""}${points.length ? ` with the points ${points.join(", ")}` : ""}`];
+      }
       if (shape.kind === "picture") return [shape.lines.length ? `a drawing labelled ${text(el.id)}` : "a drawing"];
       return [text(el.id)];
     }
@@ -223,7 +230,10 @@ function nibPosition(scene: SceneLayout, state: BoardState, paths: ReturnType<ty
       const connector = scene.connectors[el.id];
       if (shape) {
         const { art, text } = phases(shape, !!paths.shapes[el.id], el.progress);
-        if (art < 1) {
+        if (art < 1 && shape.graph) {
+          const p = graphPen(shape.graph, art);
+          if (p) return { ...p, drawing: true };
+        } else if (art < 1) {
           const pic = shape.picture;
           const p = pic ? pointOnPath(pic.d, art) : pointOnPath(paths.shapes[el.id], art);
           if (p) return pic ? { x: pic.tx + p.x * pic.scale, y: pic.ty + p.y * pic.scale, drawing: true } : { ...p, drawing: true };
@@ -424,12 +434,15 @@ function ShapeView({
   motion,
   tracing,
   take,
+  t,
 }: {
   shape: ShapeGeometry;
   path?: string;
   /** The thinner second stroke over the outline. */
   pass?: string;
   take: number;
+  /** Media time, for the point that runs along a finished graph. */
+  t: number;
   progress: number;
   earlier: boolean;
   motion: MotionStyle;
@@ -471,6 +484,7 @@ function ShapeView({
         </g>
         </g>
       )}
+      {shape.graph && art > 0 && <GraphView g={shape.graph} art={art} tone={shape.tone} opacity={opacity} trace={tracing && art >= 1 ? t : undefined} />}
       {/* Labels stay fully opaque even when earlier geometry dims, to keep AA contrast. */}
       <WrittenText id={shape.id} shape={shape} progress={text} />
     </g>
@@ -566,6 +580,113 @@ function HighlightMark({ shape, style, progress, glow, take }: { shape: ShapeGeo
       {glow && progress >= 1 && <path d={d} {...strokeProps} strokeDashoffset={0} stroke={color} strokeWidth={14} filter="url(#board-glow)" className="board-glow" />}
       <path d={d} {...strokeProps} strokeDashoffset={1 - progress} stroke={color} strokeWidth={style === "underline" ? 22 : 12} opacity={0.18} />
       <path d={d} {...strokeProps} strokeDashoffset={1 - progress} stroke={color} strokeWidth={EMPHASIS_STROKE} />
+    </g>
+  );
+}
+
+/**
+ * How a graph's drawing time is shared: the axes and grid first, then each curve in turn, then
+ * the points. All of it is a function of `art`, so seeking lands on the right frame.
+ */
+const GRAPH_AXES = 0.22;
+const GRAPH_POINTS = 0.86;
+function graphStages(g: GraphGeometry, art: number) {
+  const axes = clamp01(art / GRAPH_AXES);
+  const span = (GRAPH_POINTS - GRAPH_AXES) / Math.max(1, g.curves.length);
+  const curves = g.curves.map((_, i) => clamp01((art - GRAPH_AXES - i * span) / span));
+  const pointSpan = (1 - GRAPH_POINTS) / Math.max(1, g.points.length);
+  const points = g.points.map((_, i) => clamp01((art - GRAPH_POINTS - i * pointSpan) / pointSpan));
+  return { axes, curves, points };
+}
+
+/** Where the marker is while a graph is being drawn. */
+function graphPen(g: GraphGeometry, art: number): { x: number; y: number } | null {
+  const st = graphStages(g, art);
+  if (st.axes < 1) return pointOnPath(g.axes, st.axes);
+  const i = st.curves.findIndex((p) => p < 1);
+  if (i >= 0) return pointOnPath(g.curves[i].d, st.curves[i]);
+  const j = st.points.findIndex((p) => p < 1);
+  return j >= 0 ? { x: g.points[j].x, y: g.points[j].y } : null;
+}
+
+/** Each curve gets its own ink so two lines can be told apart; the labels say which is which. */
+function curveInk(tone: string, i: number) {
+  const order = [tone, tone === "blue" ? "red" : "blue", "ink", tone === "green" ? "orange" : "green"];
+  return ink(order[i % order.length]);
+}
+
+/**
+ * An exact Cartesian graph: grid, axes with arrows and numbered ticks, curves that plot themselves
+ * with their (x, y) riding at the tip, and points whose dashed guides drop to both axes so the
+ * coordinates are read off the same grid. The tip readout follows the /graph style of
+ * artemnovitckii/claude-animation-skills (MIT).
+ */
+function GraphView({ g, art, tone, opacity, trace }: { g: GraphGeometry; art: number; tone: string; opacity: number; trace?: number }) {
+  const st = graphStages(g, art);
+  const labelOpacity = clamp01((st.axes - 0.4) / 0.6);
+  // Once drawn, a point runs back and forth along the first curve while it is being explained.
+  const traced = trace !== undefined ? g.curves.find((c) => !c.straight) : undefined;
+  const traceTip = traced && trace !== undefined ? curveTip(traced, 0.5 - 0.5 * Math.cos(trace * 0.7)) : null;
+  return (
+    <g opacity={opacity}>
+      <path d={g.grid} fill="none" stroke={ink("ink")} strokeWidth={1} opacity={0.1 * st.axes} vectorEffect="non-scaling-stroke" />
+      <path d={g.axes} {...strokeProps} strokeDashoffset={1 - st.axes} stroke={ink("ink")} strokeWidth={2.5} />
+      <g fill={ink("ink")} fontSize={28} opacity={labelOpacity}>
+        {g.ticks.map((tk, i) => (
+          <text key={i} x={tk.x} y={tk.y} textAnchor={tk.anchor} opacity={0.75}>
+            {tk.text}
+          </text>
+        ))}
+        {g.axisNames.map((n, i) => (
+          <text key={`n${i}`} x={n.x} y={n.y} textAnchor={n.anchor} fontSize={34} fontWeight={700} fontStyle="italic">
+            {n.text}
+          </text>
+        ))}
+      </g>
+      {g.curves.map((c, i) => {
+        const p = st.curves[i];
+        if (p <= 0) return null;
+        const color = curveInk(tone, c.ink);
+        const tip = !c.straight && p < 1 ? curveTip(c, p) : null;
+        return (
+          <g key={i}>
+            <path d={c.d} {...strokeProps} strokeDashoffset={1 - p} stroke={color} strokeWidth={c.straight && c.label?.text.startsWith("x =") ? 2 : 3.5} />
+            {tip && <Readout x={tip.x} y={tip.y} text={tip.text} color={color} />}
+            {c.label && p >= 1 && (
+              <text x={c.label.x} y={c.label.y} textAnchor={c.label.anchor} fill={color} fontSize={36} fontWeight={700} stroke="var(--board)" strokeWidth={10} paintOrder="stroke">
+                {c.label.text}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {g.points.map((pt, i) => {
+        const p = st.points[i];
+        if (p <= 0) return null;
+        const color = curveInk(tone, 0);
+        return (
+          <g key={`p${i}`}>
+            <path d={pt.guides} fill="none" stroke={color} strokeWidth={2} strokeDasharray="6 8" opacity={0.7 * p} vectorEffect="non-scaling-stroke" />
+            <circle cx={pt.x} cy={pt.y} r={10 * Math.min(1, p * 1.6)} fill={color} stroke="var(--board)" strokeWidth={3} />
+            <text x={pt.label.x} y={pt.label.y} textAnchor={pt.label.anchor} fill={ink("ink")} fontSize={32} fontWeight={700} opacity={p} stroke="var(--board)" strokeWidth={10} paintOrder="stroke">
+              {pt.label.text}
+            </text>
+          </g>
+        );
+      })}
+      {traceTip && <Readout x={traceTip.x} y={traceTip.y} text={traceTip.text} color={curveInk(tone, traced!.ink)} />}
+    </g>
+  );
+}
+
+/** A dot on the curve with its coordinates beside it. */
+function Readout({ x, y, text, color }: { x: number; y: number; text: string; color: string }) {
+  return (
+    <g>
+      <circle cx={x} cy={y} r={9} fill={color} stroke="var(--board)" strokeWidth={3} />
+      <text x={x + 16} y={y - 16} fill={color} fontSize={32} fontWeight={700} fontFamily="var(--font-plex-mono), monospace" stroke="var(--board)" strokeWidth={10} paintOrder="stroke">
+        {text}
+      </text>
     </g>
   );
 }

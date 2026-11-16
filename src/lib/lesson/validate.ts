@@ -1,5 +1,6 @@
 import { ICONS, type IconName } from "../board/icons";
-import { GRID_COLS, GRID_ROWS, isElement, parsePoints, type Action, type Lesson, type LessonDraft, type PictureAction, type Scene, type Tone } from "./schema";
+import { graphHasContent, parseGraph } from "../board/graph";
+import { GRID_COLS, GRID_ROWS, isElement, parsePoints, type Action, type DraftAction, type Lesson, type LessonDraft, type PictureAction, type Scene, type Tone } from "./schema";
 
 export class LessonValidationError extends Error {}
 
@@ -97,7 +98,7 @@ export function validateLesson(raw: Lesson | LessonDraft): ValidationResult {
         const beatId = uniqueId(beat.id, `${sceneId}-b${beat.bi + 1}`);
         const actions: Action[] = [];
 
-        for (const draft of beat.actions.slice(0, LIMITS.actionsPerBeat)) {
+        for (const draft of (beat.actions as (Action | DraftAction)[]).slice(0, LIMITS.actionsPerBeat)) {
           const action = draft.kind === "picture" ? fromPicture(draft) : draft;
           const cue = findCue(beat.sentence, action.cue) === -1 ? "" : action.cue.trim();
           if (action.cue.trim() && !cue) issues.push(`cue "${action.cue}" not in sentence; using sentence start`);
@@ -118,14 +119,17 @@ export function validateLesson(raw: Lesson | LessonDraft): ValidationResult {
             // falls through
             case "add":
             case "write":
+            case "graph":
             case "sketch": {
               const id = uniqueId(action.id, `${sceneId}-el${actions.length + 1}`);
               onBoard.set(action.id, id);
-              const maxW = { add: 4, write: 6, icon: 3, sketch: 6 }[action.kind];
-              // A one-cell picture is too small to recognise, so pictures are at least 2x2.
+              const maxW = { add: 4, write: 6, icon: 3, sketch: 6, graph: 6 }[action.kind];
+              // A one-cell picture is too small to recognise, so pictures are at least 2x2; a graph needs
+              // room for its axes and numbers, so it is at least 4x3.
+              const graph = action.kind === "graph";
               const minSide = action.kind === "icon" || action.kind === "sketch" ? 2 : 1;
-              const w = clamp(action.w, minSide, maxW);
-              const h = clamp(action.h, minSide, action.kind === "sketch" ? 3 : 2);
+              const w = clamp(action.w, graph ? 4 : minSide, maxW);
+              const h = clamp(action.h, graph ? 3 : minSide, graph ? 4 : action.kind === "sketch" ? 3 : 2);
               actions.push({
                 ...action,
                 id,
@@ -143,6 +147,11 @@ export function validateLesson(raw: Lesson | LessonDraft): ValidationResult {
                 actions.pop();
                 onBoard.delete(action.id);
                 issues.push(`dropped sketch "${action.id}": fewer than 2 points`);
+              }
+              if (action.kind === "graph" && !graphHasContent(parseGraph(action.spec))) {
+                actions.pop();
+                onBoard.delete(action.id);
+                issues.push(`dropped graph "${action.id}": nothing in it could be plotted`);
               }
               break;
             }
@@ -220,6 +229,7 @@ export function validateLesson(raw: Lesson | LessonDraft): ValidationResult {
 /** Splits the model's "picture" into a catalogue icon or a freehand sketch ("~" smooth, "z" closed). */
 export function fromPicture({ draw, ...rest }: PictureAction): Action {
   const text = draw.trim();
+  if (/^graph\b/i.test(text)) return { ...rest, kind: "graph", spec: text.replace(/^graph\b:?/i, "").trim().slice(0, 500) };
   if (!/\d/.test(text)) return { ...rest, kind: "icon", icon: text };
   const smooth = text.startsWith("~");
   const closed = /z$/i.test(text);

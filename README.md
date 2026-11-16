@@ -2,7 +2,7 @@
 
 Type a topic and get a lesson of about two minutes. A tutor's voice explains it while a hand-drawn whiteboard sketches the subject (planets, leaves, cells, triangles, orbits), arrows, labels and equations in step with the words. Pause, scrub, ask a follow-up question at any moment, finish with a short recall quiz, come back to any lesson later, or download it as a video.
 
-**Live demo:** https://ai-whiteboard-tutor-wine.vercel.app
+**Live demo:** https://ai-whiteboard-tutor-wine.vercel.app · **Reviewer guide:** [REVIEW.md](REVIEW.md) maps each evaluation dimension to the code and tests behind it
 
 ![How Chalk works: you type a topic, Claude writes the lesson, a voice with word timings, the board is a function of time, then watch, ask and recall](docs/images/how-it-works.jpg)
 
@@ -35,14 +35,15 @@ Built for the Braynix Studios technical assignment "AI-Powered Interactive White
 
 1. **Ask.** Type a topic or question and choose who it is for (Kids 8–12, Teens, Adults), or open a ready-made demo.
 2. **Generate.** Claude writes a structured lesson: a teaching arc split into 3 scenes, each spoken sentence carrying the board actions that happen while it is said. While ElevenLabs records the narration (with per-character timestamps), the screen already shows the lesson's steps.
-3. **Watch.** One marker draws the board, one stroke at a time, starting each element on its cue word. Pictures come from 169 hand-drawable icons or are sketched by Claude from points (orbits, triangles, waves, graphs). The caption highlights the spoken word.
-4. **A living sketchbook.** The board is drawn like an animated pencil sketch, after the sketchbook style of [cth9191/animate](https://github.com/cth9191/animate): lines *boil* (every stroke cycles through three hand-drawn takes, so it trembles like hand animation while its shape never moves), each outline is pencilled and then inked with a second pass that doesn't quite agree, labels are hand lettered, the page has a dot grid, a vignette and a coffee ring, the title gets a red marker underline, and each new step slides onto the page with a small spring. A slow camera leans in on what is being drawn, finished drawings keep moving (the sun turns, leaves sway, dots flow along arrows), and everything pauses with the lesson and is off under reduced motion.
-5. **Control.** Play, pause, seek on a timeline with step markers, step one sentence back or forward, restart, 0.75×–1.5× speed, captions, full screen. Keyboard: Space, ← / →, R.
-6. **Ask.** Follow-up questions are answered in the context of the lesson. When an answer refers to something on the board, the player jumps to that scene and highlights those drawings.
-7. **See it for real.** A realistic AI picture of each step is pinned to a corner of the board like a photo, then comes to life as a 5-second clip that plays and pauses with the lesson.
-8. **Download the lesson as a video.** One click records the board and the voice into an MP4 (WebM where MP4 isn't supported), 1280×720, with the step pictures. It is rendered entirely in the browser from the same timeline the player uses, so nothing is uploaded.
-9. **Recall.** At the end, 2–3 questions ask the learner to retrieve what was taught, with feedback and a link back to the scene that taught it.
-10. **Schools.** Each school (tenant) signs in and sees only its own lessons. Every finished lesson is saved with its audio, pictures and clips, and replays later with no AI calls.
+3. **Watch.** One marker draws the board, one stroke at a time, starting each element on its cue word. Pictures come from 169 hand-drawable icons or are sketched by Claude from points (orbits, triangles, waves). The caption highlights the spoken word.
+4. **Exact graphs.** When a lesson involves a function, coordinates, a slope or where two lines cross, Claude writes the equation and the board plots it exactly on Cartesian axes with numbered ticks: the curve draws itself with a live (x, y) readout at the pen tip, marked points drop dashed guides to both axes, and every label finds a clear spot. The narration uses the same numbers and equations, so "at x equals three, y is five" is said while (3, 5) appears. The expression parser is written for this (no `eval`).
+5. **A living sketchbook.** The board is drawn like an animated pencil sketch, after the sketchbook style of [cth9191/animate](https://github.com/cth9191/animate): lines *boil* (every stroke cycles through three hand-drawn takes, so it trembles like hand animation while its shape never moves), each outline is pencilled and then inked with a second pass that doesn't quite agree, labels are hand lettered, the page has a dot grid, a vignette and a coffee ring, the title gets a red marker underline, and each new step slides onto the page with a small spring. A slow camera leans in on what is being drawn, finished drawings keep moving (the sun turns, leaves sway, dots flow along arrows), and everything pauses with the lesson and is off under reduced motion.
+6. **Control.** Play, pause, seek on a timeline with step markers, step one sentence back or forward, restart, 0.75×–1.5× speed, captions, full screen. Keyboard: Space, ← / →, R.
+7. **Ask.** Follow-up questions are answered in the context of the lesson. When an answer refers to something on the board, the player jumps to that scene and highlights those drawings.
+8. **See it for real.** A realistic AI picture of each step is pinned to a corner of the board like a photo, then comes to life as a 5-second clip that plays and pauses with the lesson.
+9. **Download the lesson as a video.** One click records the board and the voice into an MP4 (WebM where MP4 isn't supported), 1280×720, with the step pictures. It is rendered entirely in the browser from the same timeline the player uses, so nothing is uploaded.
+10. **Recall.** At the end, 2–3 questions ask the learner to retrieve what was taught, with feedback and a link back to the scene that taught it.
+11. **Schools.** Each school (tenant) signs in and sees only its own lessons. Every finished lesson is saved with its audio, pictures and clips, and replays later with no AI calls.
 
 If the voice fails, the lesson still plays with captions on a virtual clock. The layout works on phones, tablets and desktops, in light and dark themes, with reduced motion, reduced transparency and high contrast.
 
@@ -108,16 +109,19 @@ The UI follows a short evidence review in [`research/`](research/learning-ux-rep
 
 ## Built in an afternoon, by two AI agents and one engineer
 
-From an empty folder to the deployed app took **about 4.5 hours** of wall-clock time on 16–17 November 2026, using Claude Code (Claude Opus 5.5) as the main engineer and OpenAI Codex (GPT-6) as a second agent for planning critique, blind code reviews and the README illustrations.
+From an empty folder to the deployed app took **about 4.75 hours** of wall-clock time on 16–17 November 2026, using Claude Code (Claude Opus 5.5) as the main engineer and OpenAI Codex (GPT-6) as a second agent for planning critique, blind code reviews and the README illustrations.
 
 | | |
 |---|---|
-| Wall-clock time, first file to production | **≈ 4.5 hours** |
-| Claude Code: model calls | 950 |
-| Claude Code: tokens written (output) | 0.71 M |
-| Claude Code: tokens read | 239.7 M, of which **99 % came from the prompt cache** (2.4 M fresh) |
+| Wall-clock time, first file to production | **≈ 4.75 hours** |
+| Claude Code: model calls | 1,009 |
+| Claude Code: tokens written (output) | 0.76 M |
+| Claude Code: tokens read | 254.9 M, of which **99 % came from the prompt cache** (2.6 M fresh) |
+| Claude Code: cost at Opus 5.5 list prices | **≈ $86**; without the prompt cache the same work would cost ≈ $1,035 |
 | Codex: tokens across 19 review and planning sessions | 13.0 M |
-| Result | ~8,100 lines of TypeScript, 132 unit tests, 4 end-to-end tests, 16 commits |
+| Result | 145 unit tests, 4 end-to-end tests |
+
+![What one build session cost: $86 with prompt caching versus $1,035 without; Anthropic's published averages are $13 per developer per active day and under $30 for 90% of developers](docs/images/token-efficiency.jpg)
 
 How the work was split:
 
@@ -126,7 +130,9 @@ How the work was split:
 - **Review blind.** Before each release Codex reviewed the diff without Claude's conclusions. The last review found five real issues in the video exporter (Safari audio activation, cleanup on a failed start, cancelling during preparation, a double start, missing pictures); all were fixed before shipping.
 - **Verify in a real browser.** Every visible change was checked in a browser, including recording a full lesson to video and inspecting the file's length, resolution, audio and frames.
 
-Token counts come from the Claude Code and Codex session logs on the development machine. Cached reads are what makes long agent sessions affordable: the conversation is re-read from cache on every step instead of being processed again.
+For scale, Anthropic reports that Claude Code averages about $13 per developer per active day across enterprise deployments, with 90 % of users under $30 ([source](https://code.claude.com/docs/en/costs)). This session spent more than a typical day, and produced a complete, deployed product with it.
+
+Token counts come from the Claude Code and Codex session logs on the development machine; costs are those counts at Claude Opus 5.5 list prices ($4 / $20 per million input / output tokens, $0.20 cache reads, $8 one-hour cache writes). Cached reads are what makes long agent sessions affordable: the conversation is re-read from cache on every step instead of being processed again.
 
 ## Tech stack
 
@@ -228,4 +234,4 @@ From local and production runs in November 2026.
 
 ## Credits
 
-The sketchbook look (line boil on a few takes, a second pencil pass, page texture, spring motion) is adapted from the ideas in [cth9191/animate](https://github.com/cth9191/animate) (MIT); the code here is written for this SVG board. README illustrations were generated with OpenAI Codex (GPT-6 Astra). Icons are based on Lucide (ISC).
+Exact graphs that plot themselves with a live (x, y) readout follow the `/graph` idea in [artemnovitckii/claude-animation-skills](https://github.com/artemnovitckii/claude-animation-skills) (MIT), rebuilt for this board. The sketchbook look (line boil on a few takes, a second pencil pass, page texture, spring motion) is adapted from the ideas in [cth9191/animate](https://github.com/cth9191/animate) (MIT); the code here is written for this SVG board. README illustrations and the cost chart were generated with OpenAI Codex (GPT-6 Astra); the chart's numbers come from the session logs. Icons are based on Lucide (ISC).

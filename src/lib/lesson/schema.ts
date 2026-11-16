@@ -88,6 +88,20 @@ const SketchAction = z.object({
   cue,
 });
 
+/** A Cartesian graph drawn exactly by code from a short spec (see board/graph.ts). */
+const GraphAction = z.object({
+  kind: z.literal("graph"),
+  id: z.string(),
+  spec: z.string(),
+  label: z.string(),
+  col: z.number().int(),
+  row: z.number().int(),
+  w: z.number().int(),
+  h: z.number().int(),
+  tone: Tone,
+  cue,
+});
+
 const HighlightAction = z.object({
   kind: z.literal("highlight"),
   target: z.string().describe("id of an element already on the board in this scene"),
@@ -110,7 +124,7 @@ export function parsePoints(points: string): Point[] {
     .map(([x, y]) => ({ x, y }));
 }
 
-export const Action = z.discriminatedUnion("kind", [AddAction, ConnectAction, WriteAction, IconAction, SketchAction, HighlightAction]);
+export const Action = z.discriminatedUnion("kind", [AddAction, ConnectAction, WriteAction, IconAction, SketchAction, GraphAction, HighlightAction]);
 export type Action = z.infer<typeof Action>;
 export type AddAction = z.infer<typeof AddAction>;
 export type ConnectAction = z.infer<typeof ConnectAction>;
@@ -118,26 +132,27 @@ export type WriteAction = z.infer<typeof WriteAction>;
 export type HighlightAction = z.infer<typeof HighlightAction>;
 export type IconAction = z.infer<typeof IconAction>;
 export type SketchAction = z.infer<typeof SketchAction>;
+export type GraphAction = z.infer<typeof GraphAction>;
 /** Actions that put an element on the board (everything except connectors and highlights). */
-export type ElementAction = AddAction | WriteAction | IconAction | SketchAction;
-export const isElement = (a: Action): a is ElementAction => a.kind === "add" || a.kind === "write" || a.kind === "icon" || a.kind === "sketch";
+export type ElementAction = AddAction | WriteAction | IconAction | SketchAction | GraphAction;
+export const isElement = (a: Action): a is ElementAction => a.kind === "add" || a.kind === "write" || a.kind === "icon" || a.kind === "sketch" || a.kind === "graph";
 
 /**
  * What the model writes for a drawing: one "picture" kind that is either a catalogue icon
- * or a sketch. The six-kind union overflows the structured-output grammar, so the model
- * sees five kinds and validateLesson splits pictures into "icon" and "sketch".
+ * , a sketch or a Cartesian graph. The six-kind union overflows the structured-output grammar, so the
+ * model sees five kinds and validateLesson splits pictures into "icon", "sketch" and "graph".
  */
 const PictureAction = z.object({
   kind: z.literal("picture"),
   id: z.string(),
   draw: z
     .string()
-    .describe('Either an icon name from the icon list (e.g. "planet-ringed"), or a sketch: "x,y" points from 0 to 100 inside the element\'s box separated by spaces, optionally starting with "~" for a smooth curve and ending with "z" to close the shape, e.g. "5,95 5,5 95,95 z" or "~ 50,5 95,50 50,95 5,50 z"'),
+    .describe('An icon name from the icon list (e.g. "planet-ringed"); or a sketch: "x,y" points from 0 to 100 inside the element\'s box separated by spaces, optionally starting with "~" for a smooth curve and ending with "z" to close the shape, e.g. "5,95 5,5 95,95 z"; or an exact graph on Cartesian axes starting with "graph", items separated by ";", e.g. "graph y = x^2 - 2x; (1,-1) vertex; x -2..4; y -2..8"'),
   label: z.string().describe("Caption under the picture, at most 3 words, or empty string"),
   col: z.number().int(),
   row: z.number().int(),
-  w: z.number().int().describe("Width in grid cells: 1-3 for an icon, 1-6 for a sketch"),
-  h: z.number().int().describe("Height in grid cells: 1-2 for an icon, 1-3 for a sketch"),
+  w: z.number().int().describe("Width in grid cells: 1-3 for an icon, 1-6 for a sketch, 4-6 for a graph"),
+  h: z.number().int().describe("Height in grid cells: 1-2 for an icon, 1-3 for a sketch, 3-4 for a graph"),
   tone: Tone,
   cue,
 });
