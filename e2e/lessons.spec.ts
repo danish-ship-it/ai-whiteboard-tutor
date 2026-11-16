@@ -29,9 +29,9 @@ test("demo playback draws the board and supports speed and captions controls", a
   await expect.poll(() => drawnPathCount(board)).toBeGreaterThan(initialPaths);
   await expect(captionIn(player)).toBeVisible();
   await expect(captionIn(player)).toContainText(/\S/);
-  // Demo lessons ship a Runway clip for each step beside the board.
-  const visual = page.getByRole("region", { name: "See it for real" });
-  await expect(visual.locator("video")).toHaveAttribute("src", /\/demos\/visuals\/.+-s1\.mp4$/);
+  // Demo lessons ship a clip for each step, pinned to the board.
+  const photo = page.getByRole("region", { name: "Lesson player" }).locator("figure video");
+  await expect(photo).toHaveAttribute("src", /\/demos\/visuals\/.+-s1\.mp4$/);
 
   await player.getByRole("button", { name: "Playback speed, 1×", exact: true }).click();
   await player.getByRole("menuitemradio", { name: "0.75×", exact: true }).click();
@@ -116,7 +116,7 @@ test("a demo follow-up conversation is shared between desktop and the mobile she
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   await openSolarDemo(page);
-  const desktop = page.getByRole("region", { name: "Questions", exact: true });
+  const desktop = page.getByRole("region", { name: "Ask about this lesson", exact: true });
   await desktop.getByRole("textbox", { name: "Ask about this lesson", exact: true }).fill(question);
   await desktop.getByRole("button", { name: "Send question", exact: true }).click();
   await expect(desktop.getByText(question, { exact: true })).toBeVisible();

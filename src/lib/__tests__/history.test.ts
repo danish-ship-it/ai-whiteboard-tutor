@@ -262,4 +262,14 @@ describe("lesson history", () => {
     expect((await history.listLessons()).map(({ id }) => id)).toEqual(["original"]);
     expect(warn).toHaveBeenCalledTimes(1);
   });
+
+  it("saves pictures and clips with a saved lesson, and ignores lessons that aren't saved", async () => {
+    const saved = lesson();
+    await history.saveLesson(saved);
+    const visuals = { s1: { image: "https://cdn.example/s1.png", video: "https://cdn.example/s1.mp4" }, s2: { image: "https://cdn.example/s2.png" } };
+    await expect(history.saveVisuals(saved.id, visuals)).resolves.toBe(true);
+    expect((await history.getLesson(saved.id))?.visuals).toEqual(visuals);
+    await expect(history.saveVisuals("missing", visuals)).resolves.toBe(false);
+    expect(await history.listLessons()).toHaveLength(1);
+  });
 });

@@ -35,7 +35,7 @@ export default function Page() {
       {state.phase === "home" && <HomeView initialTopic={state.topic} offline={offline} onSubmit={generate} onOpenDemo={openDemo} onOpenSaved={openSaved} />}
       {state.phase === "generating" && <GeneratingView topic={state.topic} stage={state.stage} slow={state.slow} outline={state.outline} offline={offline} onCancel={cancel} />}
       {state.phase === "failed" && (
-        <GenerationFailed topic={state.topic} message={state.message} onRetry={() => generate(state.topic)} onChangeTopic={() => goHome(state.topic)} />
+        <GenerationFailed topic={state.topic} message={state.message} onRetry={() => generate(state.topic, state.audience)} onChangeTopic={() => goHome(state.topic)} />
       )}
       {state.phase === "lesson" && (
         <PlayerView key={state.data.token} data={state.data} offline={offline} onNewTopic={() => goHome()} onContinueWithCaptions={continueWithCaptions} />

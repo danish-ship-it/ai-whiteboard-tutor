@@ -46,6 +46,8 @@ export interface Timeline {
 const DRAW_SECONDS: Record<Action["kind"], number> = { add: 1.5, write: 1.8, connect: 1.1, icon: 2.2, sketch: 2.2, highlight: 0.8 };
 const MIN_HIGHLIGHT = 1.6;
 /** Shortest a stroke may be squeezed to so it still reads as drawn. */
+/** Shortest stroke when a scene is out of time: effectively appears at once. */
+const SNAP_SECONDS = 0.05;
 const MIN_DRAW = 0.4;
 /** A dependent action starts at least this long after the element it uses. */
 const DEPENDENCY_GAP = 0.25;
@@ -90,9 +92,11 @@ export function compileTimeline(lesson: Lesson, clock: CharClock): Timeline {
       // If the marker has fallen behind the narration, it draws faster to catch up.
       const lag = start - cued;
       let draw = DRAW_SECONDS[action.kind] * (lag > 1.5 ? 0.5 : lag > 0.6 ? 0.75 : 1);
-      // Near the end of a scene the stroke gets quicker; it never starts before its cue.
-      start = Math.min(start, Math.max(cued, sceneEnd - MIN_DRAW));
-      draw = Math.max(MIN_DRAW, Math.min(draw, sceneEnd - start));
+      // Near the end of a scene the stroke gets quicker so it finishes with the scene. It never starts
+      // early (before its cue, the previous stroke or what it connects), so strokes never overlap;
+      // in a crowded ending the last ones snap in.
+      const room = Math.max(SNAP_SECONDS, sceneEnd - start);
+      draw = Math.min(Math.max(draw, MIN_DRAW), room);
 
       const end = action.kind === "highlight" ? Math.min(sceneEnd, Math.max(timedBeat.end, start + MIN_HIGHLIGHT)) : start + draw;
       penFree = start + (action.kind === "highlight" ? Math.min(draw, end - start) : draw);
@@ -102,8 +106,29 @@ export function compileTimeline(lesson: Lesson, clock: CharClock): Timeline {
     }
   });
 
+  packCrowdedEndings(events, scenes.map((s) => s.end));
   events.sort((a, b) => a.start - b.start || a.seq - b.seq);
   return { duration: clock.duration, quality: clock.quality, scenes, beats, events };
+}
+
+/**
+ * When strokes queue past the end of their scene, walk back from the end and pack them so each
+ * still draws in turn and the last one finishes as the scene ends. They may start a little before
+ * their cue; that beats overlapping or never finishing.
+ */
+function packCrowdedEndings(events: TimelineEvent[], sceneEnds: number[]): void {
+  sceneEnds.forEach((sceneEnd, sceneIndex) => {
+    const strokes = events.filter((e) => e.sceneIndex === sceneIndex && e.action.kind !== "highlight");
+    let limit = sceneEnd;
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const e = strokes[i];
+      if (e.end <= limit) break;
+      const draw = Math.max(SNAP_SECONDS, Math.min(e.end - e.start, MIN_DRAW));
+      e.end = limit;
+      e.start = Math.max(0, limit - draw);
+      limit = e.start;
+    }
+  });
 }
 
 function timeWords(sentence: string, offset: number, timeAt: (i: number) => number): TimedWord[] {

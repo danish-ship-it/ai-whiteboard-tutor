@@ -60,6 +60,10 @@ async function post(body: object, session?: string) {
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(25_000),
+  }).catch((error: Error) => {
+    // A slow answer is reported as "busy" so the browser keeps polling instead of giving up.
+    console.error(`BBANANA request failed: ${error.name}`);
+    throw new BbananaError("The picture service is busy. Try again in a minute.", error.name === "TimeoutError" ? 504 : 502);
   });
   if (!response.ok && response.status !== 202) {
     const detail = await response.text().catch(() => "");

@@ -1,3 +1,4 @@
+import { requireUser } from "@/lib/server/auth";
 import { buildNarration } from "@/lib/lesson/narration";
 import { synthesizeNarration } from "@/lib/server/elevenlabs";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
@@ -6,7 +7,9 @@ import { readLessonToken } from "@/lib/server/lesson-token";
 export const maxDuration = 120;
 
 export async function POST(request: Request) {
-  const limited = limitOrNull(request, "narration", 10, 10 * 60_000);
+  const auth = await requireUser();
+  if (auth.denied) return auth.denied;
+  const limited = limitOrNull(request, "narration", 10, 10 * 60_000, auth.userId);
   if (limited) return limited;
 
   const body = await readJson(request, 200_000);

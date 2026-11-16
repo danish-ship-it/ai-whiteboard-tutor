@@ -52,6 +52,21 @@ describe("one marker", () => {
   });
 });
 
+describe("crowded scene endings", () => {
+  it("never overlaps strokes or overruns the scene when several are cued at its last words", () => {
+    const lesson = structuredClone(pythagoras);
+    const last = lesson.scenes[0].beats.at(-1)!;
+    last.actions = ["x", "y", "z"].map((id, i) => ({ kind: "add" as const, id, shape: "box" as const, label: id, col: 2 * i, row: 4, w: 1, h: 1, tone: "ink" as const, cue: "call c" }));
+    const text = buildNarration(lesson).text;
+    const timeline = compileTimeline(lesson, buildCharClock(text, steadyAlignment(text), null));
+    const sceneEnd = timeline.scenes[0].end;
+    const crowded = timeline.events.filter((e) => "id" in e.action && ["x", "y", "z"].includes(e.action.id));
+    expect(crowded).toHaveLength(3);
+    for (let i = 1; i < crowded.length; i++) expect(crowded[i].start).toBeGreaterThanOrEqual(crowded[i - 1].end - 1e-6);
+    for (const e of crowded) expect(e.end).toBeLessThanOrEqual(sceneEnd + 0.05 + 1e-6);
+  });
+});
+
 describe("boardStateAt", () => {
   it("is a pure function of time: seeking equals playing", () => {
     const { timeline } = build();

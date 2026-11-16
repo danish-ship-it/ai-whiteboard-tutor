@@ -6,7 +6,7 @@ import {
   deleteLesson,
   listLessons,
   type SavedLessonSummary,
-} from "@/lib/storage/history";
+} from "@/lib/storage/lessons";
 import { ICONS } from "@/lib/board/icons";
 import { DEMOS, type DemoSlug } from "@/lib/demos";
 import {

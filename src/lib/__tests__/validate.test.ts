@@ -23,6 +23,20 @@ describe("recall questions", () => {
     expect(issues.filter((i) => i.startsWith("dropped recall"))).toHaveLength(2);
   });
 
+  it("keeps the same correct answer when blank options are dropped", () => {
+    const raw = clone();
+    raw.recall = [{ question: "2 + 2?", options: ["", "Four", "Five"], answer: 1, explanation: "", sceneId: "triangle" }];
+    const { recall } = validateLesson(raw).lesson;
+    expect(recall[0].options).toEqual(["Four", "Five"]);
+    expect(recall[0].options[recall[0].answer]).toBe("Four");
+  });
+
+  it("drops a question whose correct option was blank", () => {
+    const raw = clone();
+    raw.recall = [{ question: "Q", options: ["", "a", "b"], answer: 0, explanation: "", sceneId: "triangle" }];
+    expect(validateLesson(raw).lesson.recall).toHaveLength(0);
+  });
+
   it("clears a scene id that does not exist", () => {
     const raw = clone();
     raw.recall[0].sceneId = "nope";

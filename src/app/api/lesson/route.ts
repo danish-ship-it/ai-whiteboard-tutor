@@ -1,3 +1,4 @@
+import { requireUser } from "@/lib/server/auth";
 import { DEFAULT_AUDIENCE, isAudience } from "@/lib/lesson/audience";
 import { generateLesson } from "@/lib/server/claude";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
@@ -9,7 +10,9 @@ const TOPIC_MIN = 2;
 const TOPIC_MAX = 140;
 
 export async function POST(request: Request) {
-  const limited = limitOrNull(request, "lesson", 6, 10 * 60_000);
+  const auth = await requireUser();
+  if (auth.denied) return auth.denied;
+  const limited = limitOrNull(request, "lesson", 6, 10 * 60_000, auth.userId);
   if (limited) return limited;
 
   const body = await readJson(request, 2_000);

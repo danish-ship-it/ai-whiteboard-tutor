@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AccountMenu } from "./AccountMenu";
 import { IconButton } from "./ui/Button";
 import { BrandMark, CloseIcon, KeyboardIcon, MoonIcon, SunIcon } from "./ui/icons";
 
@@ -58,6 +59,7 @@ export function AppHeader({ onHome }: { onHome: () => void }) {
           <span className="font-serif text-[30px] leading-8 font-medium tracking-[-0.025em]">Chalk</span>
         </button>
         <div className="relative flex items-center gap-1">
+          <AccountMenu />
           <IconButton label={dark ? "Use light theme" : "Use dark theme"} onClick={toggleTheme}>
             {dark ? <SunIcon /> : <MoonIcon />}
           </IconButton>

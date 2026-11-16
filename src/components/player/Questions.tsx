@@ -49,13 +49,7 @@ export function Questions({ qa, suggestions, offline: isOffline, onShowOnBoard, 
         aria-relevant="additions"
       >
         {messages.length === 0 && !pending ? (
-          <div className="mt-6 flex gap-3">
-            <span className="w-[3px] shrink-0 bg-action" />
-            <div>
-              <p className="text-xl leading-7 font-semibold">Keep the question going.</p>
-              <p className="mt-3 text-base text-muted">Ask about a step, or try another example.</p>
-            </div>
-          </div>
+          <p className="py-2 text-sm text-muted">Ask about a step, or try another example.</p>
         ) : (
           <ul className="space-y-4 py-2">
             {messages.map((m) => (

@@ -13,8 +13,10 @@ import { Questions } from "./Questions";
 import { captionsSnapshot, setCaptions, subscribeCaptions } from "@/lib/prefs";
 import { Recall } from "./Recall";
 import { Transport } from "./Transport";
-import { SceneVisualCard } from "./SceneVisualCard";
-import { useSceneVisuals } from "@/hooks/useSceneVisuals";
+import { BoardPhoto } from "./BoardPhoto";
+import { layoutLesson } from "@/lib/board/layout";
+import { useSceneVisuals, type PresetVisuals } from "@/hooks/useSceneVisuals";
+import { saveVisuals } from "@/lib/storage/lessons";
 
 interface Props {
   data: LoadedLesson;
@@ -191,8 +193,13 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
     [showOnBoard, status],
   );
   const sceneIds = useMemo(() => lesson.scenes.map((s) => s.id), [lesson.scenes]);
-  const art = useSceneVisuals({ token, sceneIds, preset: data.visuals, auto: !!data.autoVisuals });
+  const savedId = data.savedId;
+  const saveArt = useCallback((v: PresetVisuals) => savedId && void saveVisuals(savedId, v), [savedId]);
+  const art = useSceneVisuals({ token, sceneIds, preset: data.visuals, auto: !!data.autoVisuals, onSave: savedId ? saveArt : undefined });
   const lessonScene = lesson.scenes[state.sceneIndex];
+  // With pictures on, every step keeps the board's top-right corner free for its photo.
+  const boardScenes = useMemo(() => (art.available ? layoutLesson(lesson, { photo: true }) : scenes), [art.available, lesson, scenes]);
+  const photoBox = boardScenes[state.sceneIndex]?.photo;
   const qa = useLessonQuestions({ token, onAsk: playback.pause, onAnswer });
   const questions = (composerRef?: React.RefObject<HTMLTextAreaElement | null>) => (
     <Questions
@@ -237,9 +244,21 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
           </div>
         )}
 
-        <section className="glass-strong mt-4 overflow-hidden rounded-2xl" aria-label="Lesson player">
+        {/* On wide screens the 16:9 board is capped by the screen height, so title, board, captions and controls fit without scrolling. */}
+        <section className="glass-strong mt-4 overflow-hidden rounded-2xl xl:mx-auto xl:max-w-[calc((100vh-425px)*16/9)]" aria-label="Lesson player">
           <div ref={boardRef} className="relative aspect-video w-full bg-board">
-            <Whiteboard scenes={scenes} state={state} titleProgress={titleProgress} emphasis={emphasis} reducedMotion={reducedMotion} description={`${lesson.title}. ${lesson.objective}`} />
+            <Whiteboard scenes={boardScenes} state={state} titleProgress={titleProgress} emphasis={emphasis} reducedMotion={reducedMotion} description={`${lesson.title}. ${lesson.objective}`} />
+            {photoBox && lessonScene && (
+              <BoardPhoto
+                key={lessonScene.id}
+                box={photoBox}
+                visual={art.visuals[lessonScene.id]}
+                description={`AI picture: ${lessonScene.title}`}
+                playing={status === "playing"}
+                reducedMotion={reducedMotion}
+                onRetry={() => art.makeImage(lessonScene.id)}
+              />
+            )}
             {(ready || status === "blocked") && !voiceProblem && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <Button onClick={playback.play} className="w-40 shadow-popover">
@@ -292,14 +311,14 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
             }}
           />
         ) : (
-          <p className="mt-5 px-4 text-sm text-muted">
+          <p className="mt-5 px-4 text-sm text-muted xl:hidden">
             Step {state.sceneIndex + 1} of {timeline.scenes.length} · {scene?.title}
           </p>
         )}
       </div>
 
-      <aside className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-24 xl:h-[calc(100vh-128px)]">
-        <nav aria-label="Lesson outline" className="glass rounded-2xl p-4">
+      <aside className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-24 xl:h-[calc(100vh-140px)]">
+        <nav aria-label="Lesson outline" className="glass shrink-0 rounded-2xl p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base leading-6 font-semibold">Lesson outline</h2>
             <span className="font-mono text-xs text-muted">
@@ -330,24 +349,13 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
           </ol>
         </nav>
 
-        {art.available && lessonScene && (
-          <SceneVisualCard
-            title={lessonScene.title}
-            description={`AI illustration: ${lessonScene.title}`}
-            visual={art.visuals[lessonScene.id]}
-            provider={art.provider}
-            reducedMotion={reducedMotion}
-            onMakeImage={() => art.makeImage(lessonScene.id)}
-            onMakeVideo={() => art.makeVideo(lessonScene.id)}
-          />
-        )}
 
-        <section aria-labelledby="questions-heading" className="glass-strong hidden min-h-[360px] flex-1 flex-col rounded-2xl p-4 xl:flex">
-          <h2 id="questions-heading" className="text-xl leading-7 font-semibold">
-            Questions
+        {/* A compact chat that takes whatever height is left, so the page itself never scrolls. */}
+        <section aria-labelledby="questions-heading" className="glass-strong hidden min-h-[200px] flex-1 flex-col rounded-2xl p-4 xl:flex">
+          <h2 id="questions-heading" className="text-base leading-6 font-semibold">
+            Ask about this lesson
           </h2>
-          <p className="text-sm text-muted">Ask about this lesson.</p>
-          <div className="mt-3 min-h-0 flex-1">{questions(desktopComposer)}</div>
+          <div className="mt-2 min-h-0 flex-1">{questions(desktopComposer)}</div>
         </section>
       </aside>
 

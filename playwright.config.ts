@@ -34,6 +34,10 @@ export default defineConfig({
       ANTHROPIC_API_KEY: "",
       ELEVENLABS_API_KEY: "",
       RUNWAYML_API_SECRET: "",
+      BBANANA_API_KEY: "",
+      // The e2e suite runs without sign-in (lessons in IndexedDB).
+      NEXT_PUBLIC_SUPABASE_URL: "",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "",
     },
   },
 });

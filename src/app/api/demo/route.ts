@@ -1,3 +1,4 @@
+import { requireUser } from "@/lib/server/auth";
 import type { DemoRecording, DemoSlug } from "@/lib/demos";
 import { demoVisuals, isDemoSlug } from "@/lib/demos";
 import { validateLesson } from "@/lib/lesson/validate";
@@ -15,7 +16,9 @@ const recordings: Record<DemoSlug, () => Promise<{ default: unknown }>> = {
  * questions work on demos without the 12-hour token ever going stale.
  */
 export async function POST(request: Request) {
-  const limited = limitOrNull(request, "demo", 60, 10 * 60_000);
+  const auth = await requireUser();
+  if (auth.denied) return auth.denied;
+  const limited = limitOrNull(request, "demo", 60, 10 * 60_000, auth.userId);
   if (limited) return limited;
 
   const body = await readJson(request, 200);

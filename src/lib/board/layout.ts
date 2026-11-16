@@ -58,6 +58,8 @@ export interface ConnectorGeometry {
 export interface SceneLayout {
   sceneId: string;
   title: string;
+  /** Where the step's AI picture is pinned, when the lesson has pictures. Drawings are kept out of it. */
+  photo?: Box;
   shapes: Record<string, ShapeGeometry>;
   connectors: Record<string, ConnectorGeometry>;
 }
@@ -76,10 +78,17 @@ const cellsToBox = (c: Cells): Box => ({
   h: c.h * CELL_H - INSET * 2,
 });
 
-/** Deterministic, model-independent geometry for every scene of a lesson. */
-export function layoutLesson(lesson: Lesson): SceneLayout[] {
+/** Top-right corner of the grid (3 x 2 cells, about a quarter of the board) for the step's picture. */
+const PHOTO_CELLS: Cells = { col: GRID_COLS - 3, row: 0, w: 3, h: 2 };
+
+/**
+ * Deterministic, model-independent geometry for every scene of a lesson.
+ * With `photo`, each scene keeps the top-right corner free for its AI picture.
+ */
+export function layoutLesson(lesson: Lesson, { photo = false }: { photo?: boolean } = {}): SceneLayout[] {
   return lesson.scenes.map((scene) => {
     const occupied = new Set<string>();
+    if (photo) markCells(PHOTO_CELLS, occupied);
     const shapes: Record<string, ShapeGeometry> = {};
     const connectors: Record<string, ConnectorGeometry> = {};
 
@@ -122,7 +131,7 @@ export function layoutLesson(lesson: Lesson): SceneLayout[] {
         };
       }
     }
-    return { sceneId: scene.id, title: scene.title, shapes, connectors };
+    return { sceneId: scene.id, title: scene.title, shapes, connectors, ...(photo && { photo: cellsToBox(PHOTO_CELLS) }) };
   });
 }
 

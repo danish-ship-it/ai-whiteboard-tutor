@@ -183,13 +183,17 @@ export function validateLesson(raw: Lesson | LessonDraft): ValidationResult {
     scenes: kept,
     suggestedQuestions: raw.suggestedQuestions.map((q) => q.trim()).filter(Boolean).slice(0, 3),
     recall: (raw.recall ?? [])
-      .map((q) => ({
-        question: q.question.trim(),
-        options: q.options.map((o) => o.trim()).filter(Boolean).slice(0, 3),
-        answer: q.answer,
-        explanation: q.explanation.trim(),
-        sceneId: sceneIds.get(q.sceneId) ?? "",
-      }))
+      .map((q) => {
+        // Dropping blank options shifts the others, so the answer is re-pointed at the same option.
+        const kept = q.options.map((o, i) => ({ text: o.trim(), i })).filter((o) => o.text).slice(0, 3);
+        return {
+          question: q.question.trim(),
+          options: kept.map((o) => o.text),
+          answer: kept.findIndex((o) => o.i === q.answer),
+          explanation: q.explanation.trim(),
+          sceneId: sceneIds.get(q.sceneId) ?? "",
+        };
+      })
       .filter((q) => {
         const ok = q.question && q.options.length >= 2 && q.answer >= 0 && q.answer < q.options.length;
         if (!ok) issues.push(`dropped recall question "${q.question}"`);

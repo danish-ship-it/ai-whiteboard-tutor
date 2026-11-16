@@ -1,6 +1,9 @@
 import type { Lesson } from "@/lib/lesson/schema";
 import type { CharAlignment } from "@/lib/timeline/align";
 
+/** Step pictures and clips by scene id (permanent links, so replays cost nothing). */
+export type SavedVisuals = Record<string, { image: string; video?: string }>;
+
 export interface SavedLesson {
   version: 1;
   id: string;
@@ -16,6 +19,8 @@ export interface SavedLesson {
   duration: number;
   createdAt: number;
   lastOpenedAt: number;
+  /** Added after version 1 shipped; older records have none. */
+  visuals?: SavedVisuals;
 }
 
 export type SavedLessonSummary = Pick<
@@ -184,6 +189,17 @@ export async function getLesson(id: string): Promise<SavedLesson | null> {
     record.lastOpenedAt = Date.now();
     await requestResult(store.put(record));
     return record;
+  });
+}
+
+/** Records a saved lesson's pictures and clips. Does nothing if the lesson isn't saved (or was evicted). */
+export async function saveVisuals(id: string, visuals: SavedVisuals): Promise<boolean> {
+  return withStore("readwrite", false, async (store) => {
+    const record: unknown = await requestResult(store.get(id));
+    if (!isSavedLesson(record)) return false;
+    record.visuals = visuals;
+    await requestResult(store.put(record));
+    return true;
   });
 }
 

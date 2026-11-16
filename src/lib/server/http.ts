@@ -43,8 +43,9 @@ export async function readJson(request: Request, maxBytes: number): Promise<Reco
 }
 
 /** Returns a 429 response when the caller exceeded the route's budget, otherwise null. */
-export function limitOrNull(request: Request, route: string, limit: number, windowMs: number) {
-  const result = rateLimit(`${route}:${clientIp(request)}`, limit, windowMs);
+/** Rate limits per signed-in user when there is one (an IP can be shared or spoofed), else per IP. */
+export function limitOrNull(request: Request, route: string, limit: number, windowMs: number, userId?: string | null) {
+  const result = rateLimit(`${route}:${userId ? `user:${userId}` : clientIp(request)}`, limit, windowMs);
   return result.ok
     ? null
     : jsonError("You're going a bit fast. Please wait a moment and try again.", 429, { "Retry-After": String(result.retryAfter) });

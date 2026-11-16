@@ -1,3 +1,4 @@
+import { requireUser } from "@/lib/server/auth";
 import { answerFollowUp } from "@/lib/server/claude";
 import { errorResponse, jsonError, limitOrNull, readJson } from "@/lib/server/http";
 import { readLessonToken } from "@/lib/server/lesson-token";
@@ -21,7 +22,9 @@ function readHistory(value: unknown): Turn[] {
 }
 
 export async function POST(request: Request) {
-  const limited = limitOrNull(request, "ask", 30, 10 * 60_000);
+  const auth = await requireUser();
+  if (auth.denied) return auth.denied;
+  const limited = limitOrNull(request, "ask", 30, 10 * 60_000, auth.userId);
   if (limited) return limited;
 
   const body = await readJson(request, 220_000);

@@ -8,7 +8,7 @@ import { buildNarration } from "@/lib/lesson/narration";
 import type { Lesson } from "@/lib/lesson/schema";
 import { buildCharClock, type CharAlignment } from "@/lib/timeline/align";
 import { compileTimeline, type Timeline } from "@/lib/timeline/timeline";
-import { getLesson, saveLesson } from "@/lib/storage/history";
+import { getLesson, saveLesson } from "@/lib/storage/lessons";
 
 export type Stage = "planning" | "drawing" | "recording";
 
@@ -28,12 +28,15 @@ export interface LoadedLesson {
   visuals?: PresetVisuals;
   /** Make scene illustrations as soon as the lesson opens (fresh lessons only). */
   autoVisuals?: boolean;
+  /** History id when this lesson is saved on the device, so its pictures can be saved with it. */
+  savedId?: string;
 }
 
 export type SessionState =
   | { phase: "home"; topic: string }
   | { phase: "generating"; topic: string; stage: Stage; slow: boolean; outline?: string[] }
-  | { phase: "failed"; topic: string; message: string }
+  /** `audience` is kept so "Try again" makes the same kind of lesson (e.g. for kids). */
+  | { phase: "failed"; topic: string; message: string; audience?: Audience }
   | { phase: "lesson"; data: LoadedLesson };
 
 interface NarrationResponse {
@@ -157,13 +160,14 @@ export function useLessonSession() {
       releaseAudio();
       audioUrl.current = url;
       const timeline = compileTimeline(lesson, clock);
-      setState({ phase: "lesson", data: { topic, lesson, token, scenes, timeline, audioUrl: url, voiceError, autoVisuals: true } });
       // Saved only with its voice, so a replay never needs the AI again. Failure to save is silent.
-      if (audio && narration) {
+      const savedId = audio && narration ? crypto.randomUUID() : undefined;
+      setState({ phase: "lesson", data: { topic, lesson, token, scenes, timeline, audioUrl: url, voiceError, autoVisuals: true, savedId } });
+      if (savedId && audio && narration) {
         const now = Date.now();
         void saveLesson({
           version: 1,
-          id: crypto.randomUUID(),
+          id: savedId,
           topic,
           title: lesson.title,
           lesson,
@@ -181,7 +185,7 @@ export function useLessonSession() {
     } catch (error) {
       if (!current()) return;
       if ((error as Error).name === "AbortError") return;
-      setState({ phase: "failed", topic, message: (error as Error).message });
+      setState({ phase: "failed", topic, message: (error as Error).message, audience });
     } finally {
       clearTimeout(slowTimer);
     }
@@ -246,6 +250,8 @@ export function useLessonSession() {
         audioUrl: url,
         voiceError: null,
         questionsExpired: saved.tokenExpiresAt < Date.now(),
+        visuals: saved.visuals,
+        savedId: saved.id,
       },
     });
   }, []);
