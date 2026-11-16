@@ -9,6 +9,7 @@ import { boardStateAt } from "@/lib/timeline/timeline";
 import { Button, IconButton } from "../ui/Button";
 import { CheckIcon, ChevronUp, CloseIcon, ExpandIcon, PlayIcon, WarningIcon } from "../ui/icons";
 import { Questions } from "./Questions";
+import { Recall } from "./Recall";
 import { Transport } from "./Transport";
 
 interface Props {
@@ -36,6 +37,7 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
   const [answerMark, setAnswerMark] = useState<{ ids: string[]; at: number } | null>(null);
   const emphasis = answerMark && status !== "playing" && Math.abs(time - answerMark.at) < 0.01 ? answerMark.ids : undefined;
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [recallPicks, setRecallPicks] = useState<Record<number, number>>({});
   const reducedMotion = useSyncExternalStore(
     subscribeReducedMotion,
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -85,6 +87,18 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
       setAnswerMark({ ids, at: Math.min(at, playback.duration) });
       setSheetOpen(false);
       boardRef.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "nearest" });
+    },
+    [playback, reducedMotion, timeline.scenes],
+  );
+
+  /** Shows a whole scene, paused at its end, so every element it taught is on the board. */
+  const showScene = useCallback(
+    (sceneId: string) => {
+      const target = timeline.scenes.find((sc) => sc.id === sceneId);
+      if (!target) return;
+      playback.pause();
+      playback.seek(Math.max(target.start, target.end - 0.05));
+      boardRef.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center" });
     },
     [playback, reducedMotion, timeline.scenes],
   );
@@ -203,26 +217,25 @@ export function PlayerView({ data, offline, onNewTopic, onContinueWithCaptions }
           />
         </section>
 
-        {ended ? (
-          <div className="mt-5 flex flex-col gap-3 rounded-lg bg-selected p-4 md:flex-row md:items-center">
-            <p className="flex flex-1 items-center gap-3 text-base font-semibold">
-              <CheckIcon className="text-action" /> Lesson complete. What clicked?
-            </p>
-            <div className="flex gap-3">
-              <Button onClick={playback.play} className="w-[104px]">
-                Replay
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  if (window.matchMedia("(min-width: 1280px)").matches) desktopComposer.current?.focus();
-                  else openSheet();
-                }}
-              >
-                Ask a question
-              </Button>
-            </div>
-          </div>
+        {ended || (Object.keys(recallPicks).length > 0 && status !== "playing") ? (
+          <Recall
+            questions={lesson.recall}
+            picked={recallPicks}
+            onPick={(q, o) => setRecallPicks((p) => ({ ...p, [q]: o }))}
+            onReplay={() => {
+              setRecallPicks({});
+              if (ended) playback.play();
+              else {
+                playback.seek(0);
+                playback.play();
+              }
+            }}
+            onAsk={() => {
+              if (window.matchMedia("(min-width: 1280px)").matches) desktopComposer.current?.focus();
+              else openSheet();
+            }}
+            onShowScene={showScene}
+          />
         ) : (
           <p className="mt-5 px-4 text-sm text-muted">
             Step {state.sceneIndex + 1} of {timeline.scenes.length} · {scene?.title}

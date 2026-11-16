@@ -66,10 +66,98 @@ export const Whiteboard = memo(function Whiteboard({ scenes, state, titleProgres
             const target = scene.shapes[h.target];
             return target ? <HighlightMark key={`hl-${h.target}`} shape={target} style={h.style} progress={reveal(h.progress)} /> : null;
           })}
+
+        {!state.ended && <Nib at={nibPosition(scene, state, paths, reducedMotion)} animate={!reducedMotion} />}
       </g>
     </svg>
   );
 });
+
+interface NibAt {
+  x: number;
+  y: number;
+  /** True while the nib is laying down a stroke; false when it rests beside the current element. */
+  drawing: boolean;
+}
+
+/**
+ * Where the marker nib sits for this board state: on the tip of whatever is
+ * being drawn, otherwise resting beside the current element. Pointing at the
+ * element being explained is the one tutor "presence" the learning research
+ * supports (see research/learning-ux-report.md §4).
+ */
+function nibPosition(scene: SceneLayout, state: BoardState, paths: ReturnType<typeof buildPaths>, reducedMotion?: boolean): NibAt | null {
+  if (!reducedMotion) {
+    for (const h of [...state.highlights].reverse()) {
+      const shape = scene.shapes[h.target];
+      if (shape && h.progress > 0 && h.progress < 1) {
+        const c = center(shape);
+        const d = h.style === "circle" ? sketchEllipse(c.x, c.y, shape.w / 2 + 30, shape.h / 2 + 26, `hl:${shape.id}`) : sketchUnderline(shape.x, shape.y + shape.h + 18, shape.w, `ul:${shape.id}`);
+        const p = pointOnPath(d, h.progress);
+        if (p) return { ...p, drawing: true };
+      }
+    }
+    for (const el of [...state.elements].reverse()) {
+      if (el.progress <= 0 || el.progress >= 1) continue;
+      const shape = scene.shapes[el.id];
+      const connector = scene.connectors[el.id];
+      if (shape && paths.shapes[el.id]) {
+        const frac = el.progress / 0.7;
+        const p = frac < 1 ? pointOnPath(paths.shapes[el.id], frac) : null;
+        if (p) return { ...p, drawing: true };
+      } else if (shape) {
+        // Text and equations: sweep along the baseline as they are written.
+        return { x: shape.x + shape.w * el.progress, y: shape.y + shape.h / 2 + shape.fontSize * 0.45, drawing: true };
+      } else if (connector && paths.connectors[el.id]) {
+        const frac = el.progress / 0.8;
+        const p = frac < 1 ? pointOnPath(paths.connectors[el.id].line, frac) : connector.to;
+        if (p) return { x: p.x, y: p.y, drawing: true };
+      }
+    }
+  }
+  const active = state.elements.find((el) => el.active && el.progress > 0);
+  if (!active) return null;
+  const shape = scene.shapes[active.id];
+  if (shape) return { x: shape.x + shape.w + 10, y: shape.y + shape.h - 6, drawing: false };
+  const connector = scene.connectors[active.id];
+  return connector ? { x: connector.labelAt.x + 24, y: connector.labelAt.y + 24, drawing: false } : null;
+}
+
+const measured = new Map<string, { el: SVGPathElement; length: number }>();
+
+/** Point at `frac` of a path's length, measured on a detached SVG path (cached per path). */
+function pointOnPath(d: string, frac: number): { x: number; y: number } | null {
+  if (typeof document === "undefined") return null;
+  let entry = measured.get(d);
+  if (!entry) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    el.setAttribute("d", d);
+    entry = { el, length: el.getTotalLength() };
+    if (measured.size > 400) measured.clear();
+    measured.set(d, entry);
+  }
+  const p = entry.el.getPointAtLength(clamp01(frac) * entry.length);
+  return { x: p.x, y: p.y };
+}
+
+/** A felt-tip marker whose tip sits exactly on `at`. Glides between resting spots; follows strokes frame by frame. */
+function Nib({ at, animate }: { at: NibAt | null; animate: boolean }) {
+  if (!at) return null;
+  return (
+    <g
+      style={{
+        transform: `translate(${at.x}px, ${at.y}px)`,
+        transition: animate && !at.drawing ? "transform 260ms cubic-bezier(0.2, 0, 0, 1)" : undefined,
+      }}
+    >
+      <g transform="rotate(32)">
+        <path d="M0 0 L-8 -20 L8 -20 Z" fill={ink("ink")} />
+        <rect x={-13} y={-92} width={26} height={74} rx={6} fill="var(--board)" stroke={ink("ink")} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        <rect x={-13} y={-110} width={26} height={22} rx={5} fill={ink("ink")} />
+      </g>
+    </g>
+  );
+}
 
 function buildPaths(scene: SceneLayout | undefined) {
   const shapes: Record<string, string> = {};

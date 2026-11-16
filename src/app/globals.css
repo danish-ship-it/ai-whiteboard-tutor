@@ -120,6 +120,11 @@ body {
   outline-offset: 2px;
 }
 
+/* Headings that receive focus programmatically (to announce a new state) are not controls. */
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
 .kicker {
   font-size: 12px;
   line-height: 16px;

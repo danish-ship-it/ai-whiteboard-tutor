@@ -88,11 +88,21 @@ export const Scene = z.object({
 });
 export type Scene = z.infer<typeof Scene>;
 
+export const RecallQuestion = z.object({
+  question: z.string().describe("A short question about something taught earlier in the lesson"),
+  options: z.array(z.string()).describe("2-3 short answer options; exactly one is correct"),
+  answer: z.number().int().describe("Index of the correct option in options"),
+  explanation: z.string().describe("One sentence saying why the correct option is right"),
+  sceneId: z.string().describe("id of the scene that taught this"),
+});
+export type RecallQuestion = z.infer<typeof RecallQuestion>;
+
 export const Lesson = z.object({
   title: z.string(),
   objective: z.string().describe("One sentence: what the learner will understand"),
   scenes: z.array(Scene).describe("2-4 scenes; each scene is a fresh board"),
   suggestedQuestions: z.array(z.string()).describe("3 natural follow-up questions"),
+  recall: z.array(RecallQuestion).describe("2-3 end-of-lesson retrieval questions, ideally from different scenes"),
 });
 export type Lesson = z.infer<typeof Lesson>;
 

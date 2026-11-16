@@ -1,4 +1,4 @@
-import { GRID_COLS, GRID_ROWS, type Action, type Lesson } from "./schema";
+import { GRID_COLS, GRID_ROWS, type Action, type Lesson, type Scene, type Tone } from "./schema";
 
 export class LessonValidationError extends Error {}
 
@@ -47,6 +47,31 @@ export function findCue(sentence: string, cue: string): number {
  * cues that occur in their sentence. Structural problems that cannot be
  * repaired throw `LessonValidationError`.
  */
+/**
+ * Tone pairs that colour-vision-deficient learners struggle to tell apart
+ * (research/learning-ux-report.md §1): green vs teal ("purple") and brick ("red")
+ * vs ochre ("orange"). When a scene uses both, the second tone becomes blue,
+ * or graphite if blue is already taken, so colour never carries a distinction
+ * the learner cannot see.
+ */
+const CLASHES: Array<[Tone, Tone]> = [
+  ["green", "purple"],
+  ["red", "orange"],
+];
+
+function separateClashingTones(scene: Scene, issues: string[]) {
+  const actions = scene.beats.flatMap((b) => b.actions).filter((a): a is Exclude<Action, { kind: "highlight" }> => a.kind !== "highlight");
+  const used = new Set(actions.map((a) => a.tone));
+  for (const [keep, swap] of CLASHES) {
+    if (!used.has(keep) || !used.has(swap)) continue;
+    const replacement: Tone = used.has("blue") ? "ink" : "blue";
+    for (const a of actions) if (a.tone === swap) a.tone = replacement;
+    used.delete(swap);
+    used.add(replacement);
+    issues.push(`scene "${scene.id}": ${swap} next to ${keep} recoloured ${replacement}`);
+  }
+}
+
 export function validateLesson(raw: Lesson): ValidationResult {
   const issues: string[] = [];
   const usedIds = new Set<string>();
@@ -121,11 +146,29 @@ export function validateLesson(raw: Lesson): ValidationResult {
     return { id: sceneId, title: scene.title.trim() || `Part ${si + 1}`, beats };
   });
 
+  const kept = scenes.filter((s) => s.beats.length > 0);
+  for (const scene of kept) separateClashingTones(scene, issues);
+  const sceneIds = new Map(raw.scenes.map((s, i) => [s.id, scenes[i]?.id]));
+
   const lesson: Lesson = {
     title: raw.title.trim(),
     objective: raw.objective.trim(),
-    scenes: scenes.filter((s) => s.beats.length > 0),
+    scenes: kept,
     suggestedQuestions: raw.suggestedQuestions.map((q) => q.trim()).filter(Boolean).slice(0, 3),
+    recall: (raw.recall ?? [])
+      .map((q) => ({
+        question: q.question.trim(),
+        options: q.options.map((o) => o.trim()).filter(Boolean).slice(0, 3),
+        answer: q.answer,
+        explanation: q.explanation.trim(),
+        sceneId: sceneIds.get(q.sceneId) ?? "",
+      }))
+      .filter((q) => {
+        const ok = q.question && q.options.length >= 2 && q.answer >= 0 && q.answer < q.options.length;
+        if (!ok) issues.push(`dropped recall question "${q.question}"`);
+        return ok;
+      })
+      .slice(0, 3),
   };
 
   const beats = lesson.scenes.flatMap((s) => s.beats);

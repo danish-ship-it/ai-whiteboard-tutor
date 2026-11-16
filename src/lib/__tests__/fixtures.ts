@@ -73,6 +73,9 @@ export const pythagoras: Lesson = {
     },
   ],
   suggestedQuestions: ["Why does it only work for right triangles?", "How do I find a leg?", "Who discovered it?"],
+  recall: [
+    { question: "Which side is the hypotenuse?", options: ["The longest side", "The shortest side"], answer: 0, explanation: "It faces the right angle, so it is always the longest.", sceneId: "triangle" },
+  ],
 };
 
 /** Exact per-character alignment at a steady 15 chars/second. */
